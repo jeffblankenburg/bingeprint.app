@@ -1,0 +1,374 @@
+import "server-only";
+
+import type {
+  TVProvider,
+  ProviderShowSummary,
+  ProviderShowDetail,
+  ProviderEpisode,
+  ProviderPerson,
+  ProviderWatchOffer,
+  SearchResults,
+  ImageSize,
+} from "./provider";
+
+const API_BASE = process.env.TMDB_API_BASE ?? "https://api.themoviedb.org/3";
+const IMAGE_BASE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
+
+const IMAGE_SIZES: Record<ImageSize, string> = {
+  thumb: "w92",
+  poster: "w500",
+  backdrop: "w1280",
+  still: "w300",
+  profile: "w185",
+  original: "original",
+};
+
+export class TmdbError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "TmdbError";
+  }
+}
+
+/** Adapter mapping TMDB's API onto the provider-agnostic contract. */
+export class TmdbProvider implements TVProvider {
+  readonly name = "tmdb";
+  private readonly bearer: string | null;
+  private readonly apiKey: string | null;
+
+  constructor() {
+    // Prefer the v4 Read Access Token (JWT bearer). Fall back to a v3 API key
+    // (32-char hex) passed as the `api_key` query param. TMDB_API_KEY may hold
+    // either, so detect by shape.
+    const readToken = process.env.TMDB_READ_ACCESS_TOKEN?.trim();
+    const apiKeyEnv = process.env.TMDB_API_KEY?.trim();
+    const looksLikeBearer = (v?: string) => !!v && v.startsWith("ey");
+
+    this.bearer = looksLikeBearer(readToken)
+      ? readToken!
+      : looksLikeBearer(apiKeyEnv)
+        ? apiKeyEnv!
+        : null;
+    this.apiKey = !this.bearer && apiKeyEnv ? apiKeyEnv : null;
+
+    if (!this.bearer && !this.apiKey) {
+      throw new TmdbError(
+        "No TMDB credentials — set TMDB_READ_ACCESS_TOKEN (v4 bearer) or TMDB_API_KEY (v3).",
+        500,
+      );
+    }
+  }
+
+  private async get<T>(
+    path: string,
+    params: Record<string, string | number | undefined> = {},
+    revalidate = 60 * 60,
+  ): Promise<T> {
+    const url = new URL(`${API_BASE}${path}`);
+    for (const [k, v] of Object.entries(params)) {
+      if (v !== undefined) url.searchParams.set(k, String(v));
+    }
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (this.bearer) headers.Authorization = `Bearer ${this.bearer}`;
+    else if (this.apiKey) url.searchParams.set("api_key", this.apiKey);
+
+    const res = await fetch(url, { headers, next: { revalidate } });
+    if (!res.ok) {
+      throw new TmdbError(`TMDB ${path} failed: ${res.status}`, res.status);
+    }
+    return (await res.json()) as T;
+  }
+
+  imageUrl(path: string | null, size: ImageSize = "poster"): string | null {
+    if (!path) return null;
+    return `${IMAGE_BASE}/${IMAGE_SIZES[size]}${path}`;
+  }
+
+  async searchShows(query: string): Promise<ProviderShowSummary[]> {
+    const data = await this.get<{ results: TmdbShow[] }>(
+      "/search/tv",
+      { query, include_adult: "false" },
+      60 * 10,
+    );
+    return data.results.map(mapShowSummary);
+  }
+
+  async searchMulti(query: string): Promise<SearchResults> {
+    const data = await this.get<{ results: TmdbMultiResult[] }>(
+      "/search/multi",
+      { query, include_adult: "false" },
+      60 * 10,
+    );
+    const shows: ProviderShowSummary[] = [];
+    const people: ProviderPerson[] = [];
+    for (const r of data.results) {
+      if (r.media_type === "tv") shows.push(mapShowSummary(r));
+      else if (r.media_type === "person") people.push(mapPerson(r));
+    }
+    return { shows, people };
+  }
+
+  async popularShows(page = 1): Promise<ProviderShowSummary[]> {
+    const data = await this.get<{ results: TmdbShow[] }>("/tv/popular", { page });
+    return data.results.map(mapShowSummary);
+  }
+
+  async getShow(providerId: string): Promise<ProviderShowDetail> {
+    const d = await this.get<TmdbShowDetail>(`/tv/${providerId}`, {
+      append_to_response: "external_ids,aggregate_credits,images",
+      include_image_language: "en,null",
+    });
+
+    const cast = (d.aggregate_credits?.cast ?? [])
+      .slice(0, 20)
+      .map((c) => ({
+        person: mapPerson({
+          id: c.id,
+          name: c.name,
+          profile_path: c.profile_path,
+          known_for_department: c.known_for_department,
+          popularity: c.popularity,
+        }),
+        character: c.roles?.[0]?.character ?? null,
+        order: c.order ?? null,
+      }));
+
+    const images = [
+      ...(d.images?.posters ?? []).slice(0, 10).map((i) => ({
+        type: "poster" as const,
+        filePath: i.file_path,
+        width: i.width ?? null,
+        height: i.height ?? null,
+        aspectRatio: i.aspect_ratio ?? null,
+        voteAverage: i.vote_average ?? null,
+      })),
+      ...(d.images?.backdrops ?? []).slice(0, 10).map((i) => ({
+        type: "backdrop" as const,
+        filePath: i.file_path,
+        width: i.width ?? null,
+        height: i.height ?? null,
+        aspectRatio: i.aspect_ratio ?? null,
+        voteAverage: i.vote_average ?? null,
+      })),
+    ];
+
+    return {
+      ...mapShowSummary(d),
+      imdbId: d.external_ids?.imdb_id ?? null,
+      tvdbId: d.external_ids?.tvdb_id ?? null,
+      tagline: d.tagline || null,
+      lastAirDate: d.last_air_date || null,
+      status: d.status ?? null,
+      inProduction: d.in_production ?? null,
+      showType: d.type ?? null,
+      originalLanguage: d.original_language ?? null,
+      homepage: d.homepage || null,
+      voteCount: d.vote_count ?? null,
+      numberOfSeasons: d.number_of_seasons ?? null,
+      numberOfEpisodes: d.number_of_episodes ?? null,
+      episodeRunTime: d.episode_run_time?.[0] ?? null,
+      adult: d.adult ?? false,
+      genres: (d.genres ?? []).map((g) => ({ providerId: String(g.id), name: g.name })),
+      networks: (d.networks ?? []).map((n) => ({
+        providerId: String(n.id),
+        name: n.name,
+        logoPath: n.logo_path ?? null,
+        originCountry: n.origin_country ?? null,
+      })),
+      seasons: (d.seasons ?? []).map((s) => ({
+        providerId: String(s.id),
+        seasonNumber: s.season_number,
+        name: s.name ?? null,
+        overview: s.overview || null,
+        airDate: s.air_date || null,
+        posterPath: s.poster_path ?? null,
+        episodeCount: s.episode_count ?? null,
+      })),
+      createdBy: (d.created_by ?? []).map((p) =>
+        mapPerson({
+          id: p.id,
+          name: p.name,
+          profile_path: p.profile_path,
+          known_for_department: "Creator",
+        }),
+      ),
+      cast,
+      images,
+    };
+  }
+
+  async getSeasonEpisodes(
+    showProviderId: string,
+    seasonNumber: number,
+  ): Promise<ProviderEpisode[]> {
+    const d = await this.get<{ episodes: TmdbEpisode[] }>(
+      `/tv/${showProviderId}/season/${seasonNumber}`,
+    );
+    return (d.episodes ?? []).map((e) => ({
+      providerId: String(e.id),
+      seasonNumber: e.season_number,
+      episodeNumber: e.episode_number,
+      name: e.name ?? null,
+      overview: e.overview || null,
+      airDate: e.air_date || null,
+      runtime: e.runtime ?? null,
+      stillPath: e.still_path ?? null,
+      voteAverage: e.vote_average ?? null,
+      voteCount: e.vote_count ?? null,
+    }));
+  }
+
+  async getWatchProviders(
+    providerId: string,
+    region = "US",
+  ): Promise<ProviderWatchOffer[]> {
+    const d = await this.get<{ results: Record<string, TmdbWatchRegion> }>(
+      `/tv/${providerId}/watch/providers`,
+    );
+    const r = d.results?.[region];
+    if (!r) return [];
+    const offers: ProviderWatchOffer[] = [];
+    const kinds: Array<["flatrate" | "rent" | "buy" | "ads" | "free", TmdbProviderOffer[] | undefined]> = [
+      ["flatrate", r.flatrate],
+      ["ads", r.ads],
+      ["free", r.free],
+      ["rent", r.rent],
+      ["buy", r.buy],
+    ];
+    for (const [offerType, list] of kinds) {
+      for (const p of list ?? []) {
+        offers.push({
+          providerId: String(p.provider_id),
+          name: p.provider_name,
+          logoPath: p.logo_path ?? null,
+          offerType,
+        });
+      }
+    }
+    return offers;
+  }
+}
+
+// ── Raw TMDB → provider domain mappers ──────────────────────────────────────
+function mapShowSummary(s: TmdbShow): ProviderShowSummary {
+  return {
+    providerId: String(s.id),
+    name: s.name ?? s.original_name ?? "Untitled",
+    originalName: s.original_name ?? null,
+    overview: s.overview || null,
+    firstAirDate: s.first_air_date || null,
+    posterPath: s.poster_path ?? null,
+    backdropPath: s.backdrop_path ?? null,
+    popularity: s.popularity ?? null,
+    voteAverage: s.vote_average ?? null,
+  };
+}
+
+function mapPerson(p: TmdbPersonLike): ProviderPerson {
+  return {
+    providerId: String(p.id),
+    name: p.name,
+    profilePath: p.profile_path ?? null,
+    department: p.known_for_department ?? null,
+    popularity: p.popularity ?? null,
+  };
+}
+
+// ── Minimal raw TMDB response shapes (only the fields we consume) ────────────
+interface TmdbShow {
+  id: number;
+  name?: string;
+  original_name?: string;
+  overview?: string;
+  first_air_date?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  popularity?: number;
+  vote_average?: number;
+}
+interface TmdbMultiResult extends TmdbShow, TmdbPersonLike {
+  media_type: "tv" | "movie" | "person";
+}
+interface TmdbPersonLike {
+  id: number;
+  name: string;
+  profile_path?: string | null;
+  known_for_department?: string | null;
+  popularity?: number;
+}
+interface TmdbShowDetail extends TmdbShow {
+  tagline?: string;
+  last_air_date?: string;
+  status?: string;
+  in_production?: boolean;
+  type?: string;
+  original_language?: string;
+  homepage?: string;
+  vote_count?: number;
+  number_of_seasons?: number;
+  number_of_episodes?: number;
+  episode_run_time?: number[];
+  adult?: boolean;
+  genres?: Array<{ id: number; name: string }>;
+  networks?: Array<{ id: number; name: string; logo_path?: string | null; origin_country?: string }>;
+  seasons?: Array<{
+    id: number;
+    season_number: number;
+    name?: string;
+    overview?: string;
+    air_date?: string;
+    poster_path?: string | null;
+    episode_count?: number;
+  }>;
+  created_by?: Array<{ id: number; name: string; profile_path?: string | null }>;
+  external_ids?: { imdb_id?: string | null; tvdb_id?: number | null };
+  aggregate_credits?: {
+    cast?: Array<{
+      id: number;
+      name: string;
+      profile_path?: string | null;
+      known_for_department?: string | null;
+      popularity?: number;
+      order?: number;
+      roles?: Array<{ character?: string }>;
+    }>;
+  };
+  images?: {
+    posters?: TmdbImage[];
+    backdrops?: TmdbImage[];
+  };
+}
+interface TmdbImage {
+  file_path: string;
+  width?: number;
+  height?: number;
+  aspect_ratio?: number;
+  vote_average?: number;
+}
+interface TmdbEpisode {
+  id: number;
+  season_number: number;
+  episode_number: number;
+  name?: string;
+  overview?: string;
+  air_date?: string;
+  runtime?: number | null;
+  still_path?: string | null;
+  vote_average?: number;
+  vote_count?: number;
+}
+interface TmdbProviderOffer {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null;
+}
+interface TmdbWatchRegion {
+  flatrate?: TmdbProviderOffer[];
+  rent?: TmdbProviderOffer[];
+  buy?: TmdbProviderOffer[];
+  ads?: TmdbProviderOffer[];
+  free?: TmdbProviderOffer[];
+}

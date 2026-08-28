@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#0b0b0c;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#0b0b0c;padding:32px 0;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="440" cellpadding="0" cellspacing="0" style="background:#161618;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="height:6px;background:linear-gradient(to right,#c8c8c8 0 14.28%,#d6d400 14.28% 28.57%,#12c4ce 28.57% 42.85%,#18c24a 42.85% 57.14%,#c81fb4 57.14% 71.42%,#e23b2e 71.42% 85.71%,#3b6fe2 85.71% 100%);"></td>
+            </tr>
+            <tr>
+              <td style="padding:32px;color:#ededed;">
+                <p style="margin:0 0 4px;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:#8a8a8a;">Bingeprint</p>
+                <h1 style="margin:0 0 16px;font-size:22px;color:#ffffff;">Your login code</h1>
+                <p style="margin:0 0 24px;font-size:14px;color:#b5b5b5;">Enter this 6-digit code in Bingeprint to sign in:</p>
+                <div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:34px;letter-spacing:10px;font-weight:700;color:#12c4ce;text-align:center;padding:16px 0;">{{ .Token }}</div>
+                <p style="margin:24px 0 8px;font-size:14px;color:#b5b5b5;">Or just tap the button:</p>
+                <p style="margin:0 0 8px;">
+                  <a href="{{ .ConfirmationURL }}" style="display:inline-block;background:#12c4ce;color:#0b0b0c;text-decoration:none;font-weight:600;font-size:14px;padding:12px 20px;border-radius:8px;">Sign in to Bingeprint</a>
+                </p>
+                <p style="margin:24px 0 0;font-size:12px;color:#6a6a6a;">This code expires in 1 hour. If you didn&rsquo;t request it, you can ignore this email.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
