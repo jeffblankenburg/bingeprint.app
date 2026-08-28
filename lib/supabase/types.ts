@@ -291,6 +291,7 @@ export type Database = {
           created_at: string
           display_name: string | null
           id: string
+          is_admin: boolean
           is_public: boolean
           onboarded_at: string | null
           updated_at: string
@@ -302,6 +303,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id: string
+          is_admin?: boolean
           is_public?: boolean
           onboarded_at?: string | null
           updated_at?: string
@@ -313,6 +315,7 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           id?: string
+          is_admin?: boolean
           is_public?: boolean
           onboarded_at?: string | null
           updated_at?: string
@@ -636,6 +639,137 @@ export type Database = {
           tmdb_id?: number
         }
         Relationships: []
+      }
+      user_episodes: {
+        Row: {
+          episode_id: string
+          id: string
+          show_id: string
+          user_id: string
+          watched_at: string
+        }
+        Insert: {
+          episode_id: string
+          id?: string
+          show_id: string
+          user_id: string
+          watched_at?: string
+        }
+        Update: {
+          episode_id?: string
+          id?: string
+          show_id?: string
+          user_id?: string
+          watched_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_episodes_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_episodes_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_ratings: {
+        Row: {
+          created_at: string
+          episode_id: string | null
+          id: string
+          rating: number | null
+          reaction: Database["public"]["Enums"]["reaction"] | null
+          show_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          episode_id?: string | null
+          id?: string
+          rating?: number | null
+          reaction?: Database["public"]["Enums"]["reaction"] | null
+          show_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          episode_id?: string | null
+          id?: string
+          rating?: number | null
+          reaction?: Database["public"]["Enums"]["reaction"] | null
+          show_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ratings_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ratings_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_shows: {
+        Row: {
+          added_at: string
+          completed_at: string | null
+          id: string
+          is_favorite: boolean
+          show_id: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["show_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          completed_at?: string | null
+          id?: string
+          is_favorite?: boolean
+          show_id: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["show_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          completed_at?: string | null
+          id?: string
+          is_favorite?: boolean
+          show_id?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["show_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_shows_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -14,10 +14,12 @@ import { updateSession } from '@/lib/supabase/proxy-session';
 const PROTECTED_PREFIXES = [
   '/dashboard',
   '/library',
+  '/search',
   '/upcoming',
   '/insights',
   '/settings',
   '/onboarding',
+  '/admin',
 ];
 
 export async function proxy(request: NextRequest) {
