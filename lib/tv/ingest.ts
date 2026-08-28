@@ -48,12 +48,58 @@ export async function cacheShowSummary(
 }
 
 /**
- * Full import of a show: detail + every season's episodes + credits + genres +
- * networks + images + watch providers. Idempotent — safe to re-run; existing
- * rows are updated in place. Returns the local show id.
- *
- * If the show was fully synced recently and `force` is false, this is a no-op
- * that just returns the cached id.
+ * Import "core" detail in a single API call: show row + genres + networks +
+ * cast + images + season metadata (NOT episodes). Fast (~0.5s) — this is what
+ * the show page awaits so the hero/artwork renders immediately. Returns the
+ * show id plus the season list needed to fetch episodes next.
+ */
+export async function importShowCore(
+  providerId: string,
+): Promise<{ showId: string; seasonNumbers: number[]; seasonIdByNumber: Map<number, string> }> {
+  const admin = createAdminClient();
+  const provider = getProvider();
+  const detail = await provider.getShow(providerId);
+
+  const showId = await upsertShowDetail(admin, detail);
+  await Promise.all([
+    linkGenres(admin, showId, detail),
+    linkNetworks(admin, showId, detail),
+    linkCredits(admin, showId, detail),
+    replaceImages(admin, showId, detail),
+  ]);
+  const seasonIdByNumber = await upsertSeasons(admin, showId, detail);
+  await admin
+    .from("shows")
+    .update({ core_synced_at: new Date().toISOString() })
+    .eq("id", showId);
+
+  return { showId, seasonNumbers: detail.seasons.map((s) => s.seasonNumber), seasonIdByNumber };
+}
+
+/**
+ * Import the heavier tail: every season's episodes (one API call per season) +
+ * watch providers. Marks the show fully detailed. Streamed in after the hero on
+ * the show page.
+ */
+export async function importShowEpisodes(
+  providerId: string,
+  showId: string,
+  seasonNumbers: number[],
+  seasonIdByNumber: Map<number, string>,
+  region = "US",
+): Promise<void> {
+  const admin = createAdminClient();
+  await importAllEpisodes(admin, showId, providerId, seasonNumbers, seasonIdByNumber);
+  await importWatchProviders(admin, showId, providerId, region);
+  await admin
+    .from("shows")
+    .update({ details_synced_at: new Date().toISOString() })
+    .eq("id", showId);
+}
+
+/**
+ * Full import: core + episodes. Idempotent — a fresh full import is a no-op that
+ * returns the cached id. Returns the local show id.
  */
 export async function importShow(
   providerId: string,
@@ -61,7 +107,6 @@ export async function importShow(
 ): Promise<string> {
   const admin = createAdminClient();
 
-  // Skip if a fresh full import already exists.
   if (!opts.force) {
     const { data: existing } = await admin
       .from("shows")
@@ -76,27 +121,15 @@ export async function importShow(
     }
   }
 
-  const provider = getProvider();
-  const detail = await provider.getShow(providerId);
-
-  const showId = await upsertShowDetail(admin, detail);
-  await Promise.all([
-    linkGenres(admin, showId, detail),
-    linkNetworks(admin, showId, detail),
-    linkCredits(admin, showId, detail),
-    replaceImages(admin, showId, detail),
-  ]);
-
-  const seasonIdByNumber = await upsertSeasons(admin, showId, detail);
-  await importAllEpisodes(admin, showId, providerId, detail, seasonIdByNumber);
-  await importWatchProviders(admin, showId, providerId, opts.region ?? "US");
-
-  await admin
-    .from("shows")
-    .update({ details_synced_at: new Date().toISOString() })
-    .eq("id", showId);
-
-  return showId;
+  const core = await importShowCore(providerId);
+  await importShowEpisodes(
+    providerId,
+    core.showId,
+    core.seasonNumbers,
+    core.seasonIdByNumber,
+    opts.region ?? "US",
+  );
+  return core.showId;
 }
 
 // ── Show detail row ─────────────────────────────────────────────────────────
@@ -272,11 +305,10 @@ async function importAllEpisodes(
   admin: Admin,
   showId: string,
   providerId: string,
-  d: ProviderShowDetail,
+  seasonNumbers: number[],
   seasonIdByNumber: Map<number, string>,
 ) {
   const provider = getProvider();
-  const seasonNumbers = d.seasons.map((s) => s.seasonNumber);
 
   await mapWithConcurrency(seasonNumbers, 5, async (seasonNumber) => {
     const episodes = await provider.getSeasonEpisodes(providerId, seasonNumber);

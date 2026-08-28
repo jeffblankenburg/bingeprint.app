@@ -524,6 +524,7 @@ export type Database = {
         Row: {
           adult: boolean
           backdrop_path: string | null
+          core_synced_at: string | null
           created_at: string
           details_synced_at: string | null
           episode_run_time: number | null
@@ -555,6 +556,7 @@ export type Database = {
         Insert: {
           adult?: boolean
           backdrop_path?: string | null
+          core_synced_at?: string | null
           created_at?: string
           details_synced_at?: string | null
           episode_run_time?: number | null
@@ -586,6 +588,7 @@ export type Database = {
         Update: {
           adult?: boolean
           backdrop_path?: string | null
+          core_synced_at?: string | null
           created_at?: string
           details_synced_at?: string | null
           episode_run_time?: number | null
