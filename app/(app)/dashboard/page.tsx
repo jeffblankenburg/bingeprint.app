@@ -2,8 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Search as SearchIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { getContinueWatching } from "@/lib/tracking/queries";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
+
+function epCode(s: number, e: number) {
+  return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
+}
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -66,7 +71,7 @@ export default async function DashboardPage() {
     { total: 0 } as Record<string, number>,
   );
 
-  const watching = rows.filter((r) => r.status === "watching");
+  const continueWatching = await getContinueWatching(supabase, user.id);
   const recent = rows.slice(0, 12);
 
   const stats = [
@@ -124,13 +129,42 @@ export default async function DashboardPage() {
             ))}
           </section>
 
-          {/* Continue watching (in-progress shows) */}
-          {watching.length > 0 && (
+          {/* Continue watching — next unwatched episode per in-progress show */}
+          {continueWatching.length > 0 && (
             <section className="space-y-3">
               <h2 className="font-display text-lg font-semibold">Continue Watching</h2>
               <div className="flex gap-3 overflow-x-auto pb-2">
-                {watching.map((r) => (
-                  <PosterCard key={r.shows!.id} show={r.shows!} />
+                {continueWatching.map((item) => (
+                  <Link
+                    key={item.show.id}
+                    href={`/show/${item.show.tmdb_id}`}
+                    className="w-[136px] shrink-0"
+                  >
+                    <div className="aspect-[2/3] w-full overflow-hidden rounded-lg border bg-secondary">
+                      {item.show.poster_path ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`${TMDB_IMAGE}/w185${item.show.poster_path}`}
+                          alt={item.show.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <SmpteBars height="100%" />
+                      )}
+                    </div>
+                    <p className="mt-1.5 line-clamp-1 text-xs font-medium">
+                      {item.show.name}
+                    </p>
+                    {item.caughtUp ? (
+                      <p className="font-mono text-[11px] text-muted-foreground">Caught up</p>
+                    ) : item.next ? (
+                      <p className="truncate font-mono text-[11px] text-primary">
+                        {epCode(item.next.season_number, item.next.episode_number)}
+                        {item.next.name ? ` · ${item.next.name}` : ""}
+                      </p>
+                    ) : null}
+                  </Link>
                 ))}
               </div>
             </section>

@@ -8,6 +8,7 @@ import { AddToLibrary } from "@/components/library/add-to-library";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import { Logo } from "@/components/brand/logo";
 import { LazyImage } from "@/components/ui/lazy-image";
+import { SeasonsTracker } from "@/components/tracking/seasons-tracker";
 import type { ShowStatus } from "@/lib/analytics/events";
 
 const OFFER_NOTE: Record<string, string> = {
@@ -258,49 +259,39 @@ async function ShowEpisodes({
   const real = seasons.filter((s) => s.season_number > 0);
   if (real.length === 0) return null;
 
+  // Which episodes has the signed-in user watched?
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  let watchedIds: string[] = [];
+  if (user) {
+    const { data } = await supabase
+      .from("user_episodes")
+      .select("episode_id")
+      .eq("user_id", user.id)
+      .eq("show_id", showId);
+    watchedIds = (data ?? []).map((r) => r.episode_id);
+  }
+
+  const seasonsWithEpisodes = real.map((s) => ({
+    season_number: s.season_number,
+    name: s.name,
+    episodes: (bySeason.get(s.season_number) ?? []).map((e) => ({
+      id: e.id,
+      season_number: e.season_number,
+      episode_number: e.episode_number,
+      name: e.name,
+      air_date: e.air_date,
+    })),
+  }));
+
   return (
-    <section className="mt-7 space-y-3">
-      <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-        Seasons
-      </h2>
-      <div className="space-y-2">
-        {real.map((season, i) => {
-          const episodes = bySeason.get(season.season_number) ?? [];
-          return (
-            <details
-              key={season.id}
-              open={i === real.length - 1}
-              className="overflow-hidden rounded-lg border bg-card"
-            >
-              <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3">
-                <span className="font-display font-medium">
-                  {season.name ?? `Season ${season.season_number}`}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {episodes.length} eps
-                </span>
-              </summary>
-              <ul className="divide-y border-t">
-                {episodes.map((ep) => (
-                  <li key={ep.id} className="flex gap-2 px-4 py-2 text-sm">
-                    <span className="w-12 shrink-0 font-mono text-[11px] text-muted-foreground">
-                      {`S${String(ep.season_number).padStart(2, "0")}E${String(ep.episode_number).padStart(2, "0")}`}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="font-medium">{ep.name ?? "TBA"}</span>
-                      {ep.air_date && (
-                        <span className="ml-2 font-mono text-[11px] text-muted-foreground">
-                          {ep.air_date}
-                        </span>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          );
-        })}
-      </div>
-    </section>
+    <SeasonsTracker
+      showId={showId}
+      seasons={seasonsWithEpisodes}
+      initialWatched={watchedIds}
+      authed={!!user}
+    />
   );
 }
