@@ -8,7 +8,6 @@ import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 export type TrackingResult = { ok: boolean; error?: string; watched?: number; total?: number };
 
-/** Count of "real" (non-special) episodes for a show. */
 async function realEpisodeCount(supabase: Supabase, showId: string): Promise<number> {
   const { count } = await supabase
     .from("episodes")
@@ -18,11 +17,7 @@ async function realEpisodeCount(supabase: Supabase, showId: string): Promise<num
   return count ?? 0;
 }
 
-async function watchedCount(
-  supabase: Supabase,
-  userId: string,
-  showId: string,
-): Promise<number> {
+async function watchedCount(supabase: Supabase, userId: string, showId: string): Promise<number> {
   const { count } = await supabase
     .from("user_episodes")
     .select("*", { count: "exact", head: true })
@@ -40,7 +35,7 @@ async function syncStatus(
   supabase: Supabase,
   userId: string,
   showId: string,
-): Promise<{ watched: number; total: number }> {
+): Promise<{ watched: number; total: number; completed: boolean }> {
   const [watched, total] = await Promise.all([
     watchedCount(supabase, userId, showId),
     realEpisodeCount(supabase, showId),
@@ -78,110 +73,63 @@ async function syncStatus(
       .eq("show_id", showId);
   }
 
-  return { watched, total };
+  return { watched, total, completed: complete };
 }
 
-/** Mark or unmark a single episode as watched. */
-export async function toggleEpisodeWatched(
+/** Mark a set of episodes as watched. Idempotent. */
+export async function markEpisodesWatched(
   showId: string,
-  episodeId: string,
-  watched: boolean,
+  episodeIds: string[],
 ): Promise<TrackingResult> {
   const { user, supabase } = await requireUser();
+  if (episodeIds.length === 0) return { ok: true };
 
-  if (watched) {
-    const { error } = await supabase
-      .from("user_episodes")
-      .upsert(
-        { user_id: user.id, episode_id: episodeId, show_id: showId },
-        { onConflict: "user_id,episode_id", ignoreDuplicates: true },
-      );
-    if (error) return { ok: false, error: error.message };
-    await trackServer("episode_marked_watched", user.id, { show_id: showId, episode_id: episodeId });
+  const { error } = await supabase.from("user_episodes").upsert(
+    episodeIds.map((id) => ({ user_id: user.id, episode_id: id, show_id: showId })),
+    { onConflict: "user_id,episode_id", ignoreDuplicates: true },
+  );
+  if (error) return { ok: false, error: error.message };
+
+  if (episodeIds.length === 1) {
+    await trackServer("episode_marked_watched", user.id, { show_id: showId, episode_id: episodeIds[0] });
   } else {
-    const { error } = await supabase
-      .from("user_episodes")
-      .delete()
-      .eq("user_id", user.id)
-      .eq("episode_id", episodeId);
-    if (error) return { ok: false, error: error.message };
-    await trackServer("episode_unmarked_watched", user.id, { show_id: showId, episode_id: episodeId });
+    await trackServer("season_marked_watched", user.id, {
+      show_id: showId,
+      season_id: "",
+      episode_count: episodeIds.length,
+    });
   }
 
-  const { watched: w, total } = await syncStatus(supabase, user.id, showId);
-  await flushServerAnalytics();
-  revalidatePath(`/show/${showId}`);
-  revalidatePath("/dashboard");
-  return { ok: true, watched: w, total };
-}
-
-/** Mark every episode of a season as watched. */
-export async function markSeasonWatched(
-  showId: string,
-  seasonNumber: number,
-): Promise<TrackingResult> {
-  const { user, supabase } = await requireUser();
-
-  const { data: eps } = await supabase
-    .from("episodes")
-    .select("id")
-    .eq("show_id", showId)
-    .eq("season_number", seasonNumber);
-  const rows = (eps ?? []).map((e) => ({
-    user_id: user.id,
-    episode_id: e.id,
-    show_id: showId,
-  }));
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from("user_episodes")
-      .upsert(rows, { onConflict: "user_id,episode_id", ignoreDuplicates: true });
-    if (error) return { ok: false, error: error.message };
+  const { watched, total, completed } = await syncStatus(supabase, user.id, showId);
+  if (completed) {
+    await trackServer("show_completed", user.id, { show_id: showId, episode_count: total });
   }
-
-  await trackServer("season_marked_watched", user.id, {
-    show_id: showId,
-    season_id: String(seasonNumber),
-    episode_count: rows.length,
-  });
-  const { watched, total } = await syncStatus(supabase, user.id, showId);
   await flushServerAnalytics();
-  revalidatePath(`/show/${showId}`);
   revalidatePath("/dashboard");
   return { ok: true, watched, total };
 }
 
-/** Mark the entire show watched (all non-special episodes). */
-export async function markAllWatched(showId: string): Promise<TrackingResult> {
+/** Unmark a set of episodes. Idempotent. */
+export async function unmarkEpisodesWatched(
+  showId: string,
+  episodeIds: string[],
+): Promise<TrackingResult> {
   const { user, supabase } = await requireUser();
+  if (episodeIds.length === 0) return { ok: true };
 
-  const { data: eps } = await supabase
-    .from("episodes")
-    .select("id")
-    .eq("show_id", showId)
-    .gt("season_number", 0);
-  const rows = (eps ?? []).map((e) => ({
-    user_id: user.id,
-    episode_id: e.id,
-    show_id: showId,
-  }));
-  if (rows.length > 0) {
-    const { error } = await supabase
-      .from("user_episodes")
-      .upsert(rows, { onConflict: "user_id,episode_id", ignoreDuplicates: true });
-    if (error) return { ok: false, error: error.message };
+  const { error } = await supabase
+    .from("user_episodes")
+    .delete()
+    .eq("user_id", user.id)
+    .in("episode_id", episodeIds);
+  if (error) return { ok: false, error: error.message };
+
+  if (episodeIds.length === 1) {
+    await trackServer("episode_unmarked_watched", user.id, { show_id: showId, episode_id: episodeIds[0] });
   }
 
-  await trackServer("show_marked_all_watched", user.id, {
-    show_id: showId,
-    episode_count: rows.length,
-  });
   const { watched, total } = await syncStatus(supabase, user.id, showId);
-  if (total > 0 && watched >= total) {
-    await trackServer("show_completed", user.id, { show_id: showId, episode_count: total });
-  }
   await flushServerAnalytics();
-  revalidatePath(`/show/${showId}`);
   revalidatePath("/dashboard");
   return { ok: true, watched, total };
 }
