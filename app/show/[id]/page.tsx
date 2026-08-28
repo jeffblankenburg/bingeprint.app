@@ -7,7 +7,16 @@ import { createClient } from "@/lib/supabase/server";
 import { AddToLibrary } from "@/components/library/add-to-library";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import { Logo } from "@/components/brand/logo";
+import { LazyImage } from "@/components/ui/lazy-image";
 import type { ShowStatus } from "@/lib/analytics/events";
+
+const OFFER_NOTE: Record<string, string> = {
+  flatrate: "Stream",
+  ads: "Free with ads",
+  free: "Free",
+  rent: "Rent",
+  buy: "Buy",
+};
 
 const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
 
@@ -40,7 +49,7 @@ export default async function ShowPage({
   const { id } = await params;
   const core = await getShowCore(Number(id));
   if (!core) notFound();
-  const { show, genres, networks, cast, seasons } = core;
+  const { show, genres, networks, watch, cast, seasons } = core;
 
   const supabase = await createClient();
   const {
@@ -63,14 +72,15 @@ export default async function ShowPage({
     <main className="relative min-h-dvh pb-16">
       <SmpteBars height="5px" />
 
-      {/* Backdrop — short on mobile */}
-      <div className="relative h-36 w-full overflow-hidden bg-secondary sm:h-56">
+      {/* Backdrop — framed to the upper area so faces aren't cropped */}
+      <div className="relative h-40 w-full overflow-hidden bg-secondary sm:h-64 md:h-72">
         {show.backdrop_path && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={`${TMDB_IMAGE}/w780${show.backdrop_path}`}
+          <LazyImage
+            src={`${TMDB_IMAGE}/w1280${show.backdrop_path}`}
             alt=""
-            className="h-full w-full object-cover opacity-50"
+            eager
+            objectPosition="50% 20%"
+            className="opacity-55"
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
@@ -84,12 +94,7 @@ export default async function ShowPage({
         <div className="-mt-14 flex gap-3 sm:-mt-16 sm:gap-4">
           <div className="aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-lg border bg-secondary shadow-xl sm:w-32">
             {show.poster_path ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`${TMDB_IMAGE}/w342${show.poster_path}`}
-                alt={show.name}
-                className="h-full w-full object-cover"
-              />
+              <LazyImage src={`${TMDB_IMAGE}/w342${show.poster_path}`} alt={show.name} eager />
             ) : (
               <SmpteBars height="100%" />
             )}
@@ -120,22 +125,52 @@ export default async function ShowPage({
           )}
         </div>
 
-        {(genres.length > 0 || networks.length > 0) && (
+        {genres.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
             {genres.map((g) => (
               <span key={g} className="rounded-full border px-2 py-0.5 text-xs">
                 {g}
               </span>
             ))}
-            {networks.map((n) => (
-              <span
-                key={n.id}
-                className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-xs text-primary"
-              >
-                {n.name}
-              </span>
-            ))}
           </div>
+        )}
+
+        {/* Where to Watch — what users actually want to know */}
+        {watch.length > 0 && (
+          <section className="mt-5 space-y-2">
+            <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
+              Where to Watch
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {watch.map((p) => (
+                <div
+                  key={p.id}
+                  className="flex items-center gap-2 rounded-lg border bg-card py-1.5 pl-1.5 pr-2.5"
+                >
+                  <div className="h-7 w-7 shrink-0 overflow-hidden rounded-md bg-secondary">
+                    {p.logoPath && (
+                      <LazyImage src={`${TMDB_IMAGE}/w92${p.logoPath}`} alt={p.name} />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium leading-none">{p.name}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {OFFER_NOTE[p.offerType] ?? p.offerType}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="font-mono text-[10px] text-muted-foreground">
+              US availability · via JustWatch
+            </p>
+          </section>
+        )}
+
+        {networks.length > 0 && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            Originally on {networks.map((n) => n.name).join(" · ")}
+          </p>
         )}
 
         {show.overview && (
@@ -154,13 +189,7 @@ export default async function ShowPage({
                 <div key={person.id} className="w-16 shrink-0 text-center">
                   <div className="mx-auto h-16 w-16 overflow-hidden rounded-full bg-secondary">
                     {person.profile_path ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={`${TMDB_IMAGE}/w185${person.profile_path}`}
-                        alt={person.name}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                      />
+                      <LazyImage src={`${TMDB_IMAGE}/w185${person.profile_path}`} alt={person.name} />
                     ) : (
                       <SmpteBars height="100%" />
                     )}

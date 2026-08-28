@@ -7,12 +7,29 @@ import type { Tables } from "@/lib/supabase/types";
 
 const DETAIL_TTL_MS = 1000 * 60 * 60 * 24 * 3; // 3 days
 
+export type WatchProvider = {
+  id: string;
+  name: string;
+  logoPath: string | null;
+  offerType: string;
+};
+
 export type ShowCore = {
   show: Tables<"shows">;
   genres: string[];
   networks: Tables<"networks">[];
+  watch: WatchProvider[];
   cast: Array<{ person: Tables<"people">; character: string | null; role: string }>;
   seasons: Tables<"seasons">[];
+};
+
+// Prefer subscription/streaming over rent/buy when a provider offers both.
+const OFFER_RANK: Record<string, number> = {
+  flatrate: 0,
+  ads: 1,
+  free: 2,
+  rent: 3,
+  buy: 4,
 };
 
 /**
@@ -46,9 +63,14 @@ async function _getShowCore(tmdbId: number): Promise<ShowCore | null> {
   }
   if (!show) return null;
 
-  const [genresRes, networksRes, castRes, seasonsRes] = await Promise.all([
+  const [genresRes, networksRes, watchRes, castRes, seasonsRes] = await Promise.all([
     admin.from("show_genres").select("genres(name)").eq("show_id", show.id),
     admin.from("show_networks").select("networks(*)").eq("show_id", show.id),
+    admin
+      .from("show_streaming")
+      .select("offer_type, streaming_services(id, name, logo_path)")
+      .eq("show_id", show.id)
+      .eq("region", "US"),
     admin
       .from("credits")
       .select("role, character, order, people(*)")
@@ -82,7 +104,32 @@ async function _getShowCore(tmdbId: number): Promise<ShowCore | null> {
         !!c.person,
     );
 
-  return { show, genres, networks, cast, seasons: seasonsRes.data ?? [] };
+  // Dedupe providers by service, keeping the best offer type (flatrate first).
+  const bestByService = new Map<string, WatchProvider>();
+  for (const row of watchRes.data ?? []) {
+    const svc = row.streaming_services as
+      | { id: string; name: string; logo_path: string | null }
+      | null;
+    if (!svc) continue;
+    const candidate: WatchProvider = {
+      id: svc.id,
+      name: svc.name,
+      logoPath: svc.logo_path,
+      offerType: row.offer_type,
+    };
+    const existing = bestByService.get(svc.id);
+    if (
+      !existing ||
+      (OFFER_RANK[candidate.offerType] ?? 9) < (OFFER_RANK[existing.offerType] ?? 9)
+    ) {
+      bestByService.set(svc.id, candidate);
+    }
+  }
+  const watch = [...bestByService.values()].sort(
+    (a, b) => (OFFER_RANK[a.offerType] ?? 9) - (OFFER_RANK[b.offerType] ?? 9),
+  );
+
+  return { show, genres, networks, watch, cast, seasons: seasonsRes.data ?? [] };
 }
 
 /**

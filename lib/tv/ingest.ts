@@ -66,6 +66,8 @@ export async function importShowCore(
     linkNetworks(admin, showId, detail),
     linkCredits(admin, showId, detail),
     replaceImages(admin, showId, detail),
+    // Where-to-watch is what users care about most, so fetch it with the hero.
+    importWatchProviders(admin, showId, providerId, "US"),
   ]);
   const seasonIdByNumber = await upsertSeasons(admin, showId, detail);
   await admin
@@ -89,8 +91,8 @@ export async function importShowEpisodes(
   region = "US",
 ): Promise<void> {
   const admin = createAdminClient();
+  void region; // watch providers now fetched in importShowCore
   await importAllEpisodes(admin, showId, providerId, seasonNumbers, seasonIdByNumber);
-  await importWatchProviders(admin, showId, providerId, region);
   await admin
     .from("shows")
     .update({ details_synced_at: new Date().toISOString() })
