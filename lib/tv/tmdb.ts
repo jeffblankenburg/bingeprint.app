@@ -106,7 +106,8 @@ export class TmdbProvider implements TVProvider {
     const people: ProviderPerson[] = [];
     for (const r of data.results) {
       if (r.media_type === "tv") shows.push(mapShowSummary(r));
-      else if (r.media_type === "person") people.push(mapPerson(r));
+      else if (r.media_type === "person")
+        people.push(mapPerson({ ...r, name: r.name ?? "Unknown" }));
     }
     return { shows, people };
   }
@@ -289,8 +290,19 @@ interface TmdbShow {
   popularity?: number;
   vote_average?: number;
 }
-interface TmdbMultiResult extends TmdbShow, TmdbPersonLike {
+interface TmdbMultiResult {
+  id: number;
   media_type: "tv" | "movie" | "person";
+  name?: string;
+  original_name?: string;
+  overview?: string;
+  first_air_date?: string;
+  poster_path?: string | null;
+  backdrop_path?: string | null;
+  popularity?: number;
+  vote_average?: number;
+  profile_path?: string | null;
+  known_for_department?: string | null;
 }
 interface TmdbPersonLike {
   id: number;

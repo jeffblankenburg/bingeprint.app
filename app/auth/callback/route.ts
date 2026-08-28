@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { trackServer, flushServerAnalytics } from "@/lib/analytics";
+import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 
 /**
  * Magic-link landing route. Supabase redirects here with a `code` after the

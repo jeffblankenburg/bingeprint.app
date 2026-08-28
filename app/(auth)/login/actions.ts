@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getOrigin } from "@/lib/site-url";
-import { trackServer, flushServerAnalytics } from "@/lib/analytics";
+import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 
 const emailSchema = z.string().trim().toLowerCase().email();
 const otpSchema = z.string().trim().regex(/^\d{6}$/, "Enter the 6-digit code");
