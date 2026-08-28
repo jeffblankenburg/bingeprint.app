@@ -92,7 +92,7 @@ export default async function ShowPage({
       <div className="mx-auto w-full max-w-3xl px-4">
         {/* Hero: poster + title */}
         <div className="-mt-14 flex gap-3 sm:-mt-16 sm:gap-4">
-          <div className="aspect-[2/3] w-24 shrink-0 overflow-hidden rounded-lg border bg-secondary shadow-xl sm:w-32">
+          <div className="aspect-[2/3] w-24 shrink-0 self-start overflow-hidden rounded-lg border bg-secondary shadow-xl sm:w-32">
             {show.poster_path ? (
               <LazyImage src={`${TMDB_IMAGE}/w342${show.poster_path}`} alt={show.name} eager />
             ) : (
