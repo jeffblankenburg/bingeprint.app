@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Check } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import { markEpisodesWatched, unmarkEpisodesWatched } from "@/lib/tracking/actions";
 import { BarMeter } from "@/components/brand/smpte-bars";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,7 @@ type Ep = {
   episode_number: number;
   name: string | null;
   air_date: string | null;
+  aired: boolean;
 };
 type Season = { season_number: number; name: string | null; episodes: Ep[] };
 
@@ -24,13 +25,23 @@ function Tick({
   on,
   onClick,
   label,
-  size = "md",
+  disabled,
 }: {
   on: boolean;
   onClick: (e: React.MouseEvent) => void;
   label: string;
-  size?: "md" | "sm";
+  disabled?: boolean;
 }) {
+  if (disabled) {
+    return (
+      <span
+        aria-hidden
+        className="flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-muted-foreground/30 text-muted-foreground/40"
+      >
+        <Clock className="size-3" />
+      </span>
+    );
+  }
   return (
     <button
       type="button"
@@ -38,14 +49,13 @@ function Tick({
       aria-pressed={on}
       aria-label={label}
       className={cn(
-        "flex shrink-0 items-center justify-center rounded-full border transition-colors",
-        size === "md" ? "size-6" : "size-5",
+        "flex size-6 shrink-0 items-center justify-center rounded-full border transition-colors",
         on
           ? "border-primary bg-primary text-primary-foreground"
           : "border-input text-transparent hover:border-ring",
       )}
     >
-      <Check className={size === "md" ? "size-3.5" : "size-3"} />
+      <Check className="size-3.5" />
     </button>
   );
 }
@@ -65,7 +75,6 @@ export function SeasonsTracker({
   const [, startTransition] = useTransition();
   const [prompt, setPrompt] = useState<{ ids: string[]; label: string } | null>(null);
 
-  // Chronological flat list + index lookup, for the "earlier episodes" check.
   const ordered = useMemo(() => seasons.flatMap((s) => s.episodes), [seasons]);
   const indexOf = useMemo(() => {
     const m = new Map<string, number>();
@@ -73,8 +82,9 @@ export function SeasonsTracker({
     return m;
   }, [ordered]);
 
-  const total = ordered.length;
-  const watchedTotal = ordered.filter((e) => watched.has(e.id)).length;
+  const airedIds = useMemo(() => ordered.filter((e) => e.aired).map((e) => e.id), [ordered]);
+  const total = airedIds.length; // progress is measured against what's watchable
+  const watchedTotal = airedIds.filter((id) => watched.has(id)).length;
   const pct = total > 0 ? Math.round((watchedTotal / total) * 100) : 0;
   const complete = total > 0 && watchedTotal >= total;
 
@@ -98,15 +108,16 @@ export function SeasonsTracker({
     startTransition(() => void unmarkEpisodesWatched(showId, ids));
   }
 
-  /** Episodes before `index` that aren't watched yet (using the current set). */
+  /** Aired episodes before `index` that aren't watched yet. */
   function earlierUnwatched(index: number): string[] {
     return ordered
       .slice(0, index)
-      .filter((e) => !watched.has(e.id))
+      .filter((e) => e.aired && !watched.has(e.id))
       .map((e) => e.id);
   }
 
   function toggleEpisode(ep: Ep) {
+    if (!ep.aired) return;
     if (watched.has(ep.id)) {
       doUnmark([ep.id]);
       return;
@@ -118,14 +129,15 @@ export function SeasonsTracker({
   }
 
   function toggleSeason(season: Season) {
-    const ids = season.episodes.map((e) => e.id);
-    const allOn = ids.length > 0 && ids.every((id) => watched.has(id));
+    const ids = season.episodes.filter((e) => e.aired).map((e) => e.id);
+    if (ids.length === 0) return;
+    const allOn = ids.every((id) => watched.has(id));
     if (allOn) {
       doUnmark(ids);
       return;
     }
     doMark(ids);
-    const firstId = season.episodes[0]?.id;
+    const firstId = season.episodes.find((e) => e.aired)?.id;
     const earlier = firstId ? earlierUnwatched(indexOf.get(firstId) ?? 0) : [];
     if (earlier.length > 0)
       setPrompt({ ids: earlier, label: season.name ?? `Season ${season.season_number}` });
@@ -142,9 +154,9 @@ export function SeasonsTracker({
         <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
           Seasons
         </h2>
-        {authed && !complete && (
+        {authed && total > 0 && !complete && (
           <button
-            onClick={() => doMark(ordered.map((e) => e.id))}
+            onClick={() => doMark(airedIds)}
             className="rounded-md border border-input px-2.5 py-1 text-xs font-medium hover:bg-accent"
           >
             Mark all watched
@@ -166,9 +178,9 @@ export function SeasonsTracker({
 
       <div className="space-y-2">
         {seasons.map((season, i) => {
-          const ids = season.episodes.map((e) => e.id);
-          const sWatched = ids.filter((id) => watched.has(id)).length;
-          const sOn = ids.length > 0 && sWatched >= ids.length;
+          const seasonAired = season.episodes.filter((e) => e.aired);
+          const sWatched = seasonAired.filter((e) => watched.has(e.id)).length;
+          const sOn = seasonAired.length > 0 && sWatched >= seasonAired.length;
           return (
             <details
               key={season.season_number}
@@ -179,6 +191,7 @@ export function SeasonsTracker({
                 {authed ? (
                   <Tick
                     on={sOn}
+                    disabled={seasonAired.length === 0}
                     label={sOn ? `Unmark ${season.name ?? "season"}` : `Mark ${season.name ?? "season"} watched`}
                     onClick={(e) => {
                       e.preventDefault();
@@ -193,7 +206,9 @@ export function SeasonsTracker({
                   {season.name ?? `Season ${season.season_number}`}
                 </span>
                 <span className="tabular font-mono text-xs text-muted-foreground">
-                  {authed ? `${sWatched}/${ids.length}` : `${ids.length} eps`}
+                  {authed && seasonAired.length > 0
+                    ? `${sWatched}/${seasonAired.length}`
+                    : `${season.episodes.length} eps`}
                 </span>
               </summary>
               <ul className="divide-y border-t">
@@ -204,6 +219,7 @@ export function SeasonsTracker({
                       {authed ? (
                         <Tick
                           on={isWatched}
+                          disabled={!ep.aired}
                           label={isWatched ? "Mark unwatched" : "Mark watched"}
                           onClick={() => toggleEpisode(ep)}
                         />
@@ -216,14 +232,17 @@ export function SeasonsTracker({
                       <span
                         className={cn(
                           "min-w-0 flex-1",
+                          !ep.aired && "text-muted-foreground",
                           isWatched && "text-muted-foreground line-through decoration-muted-foreground/40",
                         )}
                       >
                         <span className="font-medium">{ep.name ?? "TBA"}</span>
-                        {ep.air_date && (
+                        {ep.air_date ? (
                           <span className="ml-2 font-mono text-[11px] text-muted-foreground">
-                            {ep.air_date}
+                            {ep.aired ? ep.air_date : `Airs ${ep.air_date}`}
                           </span>
+                        ) : (
+                          <span className="ml-2 font-mono text-[11px] text-muted-foreground">TBA</span>
                         )}
                       </span>
                     </li>
@@ -235,7 +254,6 @@ export function SeasonsTracker({
         })}
       </div>
 
-      {/* "Catch up earlier episodes?" prompt */}
       {prompt && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-4 sm:items-center"

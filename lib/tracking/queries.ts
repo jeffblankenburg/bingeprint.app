@@ -57,7 +57,7 @@ export async function getContinueWatching(
 
       const watchedSet = new Set((watchedRows ?? []).map((w) => w.episode_id));
       const allEps = eps ?? [];
-      const aired = allEps.filter((e) => !e.air_date || e.air_date <= today);
+      const aired = allEps.filter((e) => e.air_date && e.air_date <= today);
       const next = aired.find((e) => !watchedSet.has(e.id)) ?? null;
 
       return {

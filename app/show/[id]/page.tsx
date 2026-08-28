@@ -274,6 +274,7 @@ async function ShowEpisodes({
     watchedIds = (data ?? []).map((r) => r.episode_id);
   }
 
+  const today = new Date().toISOString().slice(0, 10);
   const seasonsWithEpisodes = real.map((s) => ({
     season_number: s.season_number,
     name: s.name,
@@ -283,6 +284,7 @@ async function ShowEpisodes({
       episode_number: e.episode_number,
       name: e.name,
       air_date: e.air_date,
+      aired: !!e.air_date && e.air_date <= today,
     })),
   }));
 

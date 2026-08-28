@@ -84,19 +84,33 @@ export async function markEpisodesWatched(
   const { user, supabase } = await requireUser();
   if (episodeIds.length === 0) return { ok: true };
 
+  // Enforce: you can't mark an episode that hasn't aired yet.
+  const today = new Date().toISOString().slice(0, 10);
+  const { data: eps } = await supabase
+    .from("episodes")
+    .select("id, air_date")
+    .in("id", episodeIds);
+  const airedIds = (eps ?? [])
+    .filter((e) => e.air_date && e.air_date <= today)
+    .map((e) => e.id);
+  if (airedIds.length === 0) {
+    const { watched, total } = await syncStatus(supabase, user.id, showId);
+    return { ok: true, watched, total };
+  }
+
   const { error } = await supabase.from("user_episodes").upsert(
-    episodeIds.map((id) => ({ user_id: user.id, episode_id: id, show_id: showId })),
+    airedIds.map((id) => ({ user_id: user.id, episode_id: id, show_id: showId })),
     { onConflict: "user_id,episode_id", ignoreDuplicates: true },
   );
   if (error) return { ok: false, error: error.message };
 
-  if (episodeIds.length === 1) {
+  if (airedIds.length === 1) {
     await trackServer("episode_marked_watched", user.id, { show_id: showId, episode_id: episodeIds[0] });
   } else {
     await trackServer("season_marked_watched", user.id, {
       show_id: showId,
       season_id: "",
-      episode_count: episodeIds.length,
+      episode_count: airedIds.length,
     });
   }
 
