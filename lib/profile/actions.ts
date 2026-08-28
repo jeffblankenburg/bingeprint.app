@@ -50,3 +50,30 @@ export async function updateProfile(
   revalidatePath("/settings");
   return { ok: true, saved: true };
 }
+
+/**
+ * Replace the user's set of subscribed streaming services. Used to gate
+ * recommendations to shows they can actually watch (never gates tracking).
+ */
+export async function setStreamingServices(
+  serviceIds: string[],
+): Promise<{ ok: boolean; error?: string }> {
+  const { user, supabase } = await requireUser();
+
+  const { error: delErr } = await supabase
+    .from("user_streaming_services")
+    .delete()
+    .eq("user_id", user.id);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  if (serviceIds.length > 0) {
+    const { error } = await supabase
+      .from("user_streaming_services")
+      .insert(serviceIds.map((id) => ({ user_id: user.id, service_id: id })));
+    if (error) return { ok: false, error: error.message };
+  }
+
+  revalidatePath("/settings");
+  return { ok: true };
+}
+

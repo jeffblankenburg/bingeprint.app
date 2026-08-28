@@ -622,6 +622,7 @@ export type Database = {
       streaming_services: {
         Row: {
           created_at: string
+          display_priority: number | null
           id: string
           logo_path: string | null
           name: string
@@ -629,6 +630,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          display_priority?: number | null
           id?: string
           logo_path?: string | null
           name: string
@@ -636,6 +638,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          display_priority?: number | null
           id?: string
           logo_path?: string | null
           name?: string
@@ -770,6 +773,32 @@ export type Database = {
             columns: ["show_id"]
             isOneToOne: false
             referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_streaming_services: {
+        Row: {
+          added_at: string
+          service_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          service_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          service_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_streaming_services_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "streaming_services"
             referencedColumns: ["id"]
           },
         ]

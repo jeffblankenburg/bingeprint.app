@@ -2,6 +2,7 @@ import "server-only";
 
 import { gunzipSync } from "node:zlib";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getProvider } from "@/lib/tv/provider";
 import type { Json } from "@/lib/supabase/types";
 
 const EXPORT_BASE = "https://files.tmdb.org/p/exports";
@@ -109,4 +110,27 @@ export async function syncCatalog(
   }
 
   return { date, parsed: rows.length, upserted, batches: batches.length };
+}
+
+/**
+ * Upsert the full list of watch providers for a region (name, logo, display
+ * priority) so the settings picker has every major service with artwork —
+ * regardless of which shows have been imported yet. One API call.
+ */
+export async function syncStreamingProviders(region = "US"): Promise<number> {
+  const provider = getProvider();
+  const list = await provider.getWatchProviderList(region);
+  if (list.length === 0) return 0;
+  const admin = createAdminClient();
+  const { error } = await admin.from("streaming_services").upsert(
+    list.map((p) => ({
+      tmdb_id: Number(p.providerId),
+      name: p.name,
+      logo_path: p.logoPath,
+      display_priority: p.displayPriority,
+    })),
+    { onConflict: "tmdb_id" },
+  );
+  if (error) throw error;
+  return list.length;
 }

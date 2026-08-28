@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { syncCatalog } from "@/lib/tv/catalog";
+import { syncCatalog, syncStreamingProviders } from "@/lib/tv/catalog";
 import { isAuthorizedCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
@@ -23,10 +23,14 @@ export async function GET(request: NextRequest) {
 
   const startedAt = Date.now();
   try {
-    const result = await syncCatalog({ limit });
+    const [result, providers] = await Promise.all([
+      syncCatalog({ limit }),
+      syncStreamingProviders("US").catch(() => 0),
+    ]);
     return NextResponse.json({
       ok: true,
       ...result,
+      providers,
       elapsed_ms: Date.now() - startedAt,
     });
   } catch (err) {

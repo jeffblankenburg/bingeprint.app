@@ -101,6 +101,12 @@ export interface ProviderWatchOffer extends ProviderRef {
   offerType: "flatrate" | "rent" | "buy" | "ads" | "free";
 }
 
+export interface ProviderProviderInfo extends ProviderRef {
+  name: string;
+  logoPath: string | null;
+  displayPriority: number;
+}
+
 export interface SearchResults {
   shows: ProviderShowSummary[];
   people: ProviderPerson[];
@@ -115,6 +121,8 @@ export interface TVProvider {
   getShow(providerId: string): Promise<ProviderShowDetail>;
   getSeasonEpisodes(showProviderId: string, seasonNumber: number): Promise<ProviderEpisode[]>;
   getWatchProviders(providerId: string, region?: string): Promise<ProviderWatchOffer[]>;
+  /** The full list of watch providers available in a region (for the picker). */
+  getWatchProviderList(region?: string): Promise<ProviderProviderInfo[]>;
   popularShows(page?: number): Promise<ProviderShowSummary[]>;
   imageUrl(path: string | null, size?: ImageSize): string | null;
 }

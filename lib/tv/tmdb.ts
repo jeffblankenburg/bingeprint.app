@@ -7,6 +7,7 @@ import type {
   ProviderEpisode,
   ProviderPerson,
   ProviderWatchOffer,
+  ProviderProviderInfo,
   SearchResults,
   ImageSize,
 } from "./provider";
@@ -222,6 +223,20 @@ export class TmdbProvider implements TVProvider {
     }));
   }
 
+  async getWatchProviderList(region = "US"): Promise<ProviderProviderInfo[]> {
+    const d = await this.get<{ results: TmdbProviderInfo[] }>(
+      "/watch/providers/tv",
+      { watch_region: region },
+      60 * 60 * 24,
+    );
+    return (d.results ?? []).map((p) => ({
+      providerId: String(p.provider_id),
+      name: p.provider_name,
+      logoPath: p.logo_path ?? null,
+      displayPriority: p.display_priorities?.[region] ?? p.display_priority ?? 999,
+    }));
+  }
+
   async getWatchProviders(
     providerId: string,
     region = "US",
@@ -376,6 +391,13 @@ interface TmdbProviderOffer {
   provider_id: number;
   provider_name: string;
   logo_path?: string | null;
+}
+interface TmdbProviderInfo {
+  provider_id: number;
+  provider_name: string;
+  logo_path?: string | null;
+  display_priority?: number;
+  display_priorities?: Record<string, number>;
 }
 interface TmdbWatchRegion {
   flatrate?: TmdbProviderOffer[];
