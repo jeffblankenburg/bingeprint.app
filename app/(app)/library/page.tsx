@@ -96,12 +96,13 @@ export default async function LibraryPage() {
             </h2>
             <ul className="divide-y rounded-xl border bg-card">
               {byStatus.get(statusKey)!.map(({ shows: show }) => (
-                <li key={show!.id} className="flex items-center gap-3 p-3">
+                <li key={show!.id} className="flex items-start gap-3 p-3">
                   <Link
                     href={`/show/${show!.tmdb_id}`}
-                    className="flex min-w-0 flex-1 items-center gap-3"
+                    className="shrink-0"
+                    aria-label={show!.name}
                   >
-                    <div className="h-[68px] w-[46px] shrink-0 overflow-hidden rounded bg-secondary">
+                    <div className="h-[68px] w-[46px] overflow-hidden rounded bg-secondary">
                       {show!.poster_path ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -114,17 +115,21 @@ export default async function LibraryPage() {
                         <SmpteBars height="100%" />
                       )}
                     </div>
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{show!.name}</p>
-                      <p className="font-mono text-xs text-muted-foreground">
-                        {show!.first_air_date?.slice(0, 4) ?? "—"}
-                        {show!.number_of_episodes
-                          ? ` · ${show!.number_of_episodes} eps`
-                          : ""}
-                      </p>
-                    </div>
                   </Link>
-                  <LibraryControls showId={show!.id} status={statusKey} />
+                  <div className="min-w-0 flex-1">
+                    <Link href={`/show/${show!.tmdb_id}`}>
+                      <p className="line-clamp-2 font-medium leading-tight">{show!.name}</p>
+                    </Link>
+                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                      {show!.first_air_date?.slice(0, 4) ?? "—"}
+                      {show!.number_of_episodes
+                        ? ` · ${show!.number_of_episodes} eps`
+                        : ""}
+                    </p>
+                    <div className="mt-2">
+                      <LibraryControls showId={show!.id} status={statusKey} />
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
