@@ -6,9 +6,10 @@ import { getShowCore, getShowEpisodes } from "@/lib/tv/read";
 import { createClient } from "@/lib/supabase/server";
 import { AddToLibrary } from "@/components/library/add-to-library";
 import { SmpteBars } from "@/components/brand/smpte-bars";
-import { Logo } from "@/components/brand/logo";
 import { LazyImage } from "@/components/ui/lazy-image";
 import { SeasonsTracker } from "@/components/tracking/seasons-tracker";
+import { AppHeader } from "@/components/app/app-header";
+import { BottomTabs } from "@/components/app/nav";
 import type { ShowStatus } from "@/lib/analytics/events";
 
 const OFFER_NOTE: Record<string, string> = {
@@ -70,25 +71,22 @@ export default async function ShowPage({
   const year = show.first_air_date?.slice(0, 4);
 
   return (
-    <main className="relative min-h-dvh pb-16">
-      <SmpteBars height="5px" />
-
-      {/* Backdrop — framed to the upper area so faces aren't cropped */}
-      <div className="relative h-40 w-full overflow-hidden bg-secondary sm:h-64 md:h-72">
-        {show.backdrop_path && (
-          <LazyImage
-            src={`${TMDB_IMAGE}/w1280${show.backdrop_path}`}
-            alt=""
-            eager
-            objectPosition="50% 20%"
-            className="opacity-55"
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
-        <Link href="/" className="absolute left-4 top-3">
-          <Logo size={20} />
-        </Link>
-      </div>
+    <>
+      <AppHeader />
+      <main className="relative min-h-dvh pb-16">
+        {/* Backdrop — framed to the upper area so faces aren't cropped */}
+        <div className="relative h-40 w-full overflow-hidden bg-secondary sm:h-64 md:h-72">
+          {show.backdrop_path && (
+            <LazyImage
+              src={`${TMDB_IMAGE}/w1280${show.backdrop_path}`}
+              alt=""
+              eager
+              objectPosition="50% 20%"
+              className="opacity-55"
+            />
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-transparent" />
+        </div>
 
       {/* relative z-10: the poster is pulled up over the (positioned) backdrop,
           so the content must sit in its own stacking context above it. */}
@@ -216,7 +214,9 @@ export default async function ShowPage({
           Metadata from TMDB
         </p>
       </div>
-    </main>
+      </main>
+      {user && <BottomTabs />}
+    </>
   );
 }
 

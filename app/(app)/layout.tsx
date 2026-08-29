@@ -1,11 +1,11 @@
 import { requireUser } from "@/lib/auth";
-import { TopBar } from "@/components/app/top-bar";
-import { BottomNav } from "@/components/app/bottom-nav";
+import { AppHeader } from "@/components/app/app-header";
+import { BottomTabs } from "@/components/app/nav";
 import { TrackOnMount } from "@/components/analytics/track-on-mount";
 
 /**
  * Authenticated app shell. Guarantees a session (redirects to /login otherwise)
- * and frames every in-app page with the top bar + bottom navigation.
+ * and frames every in-app page with the sticky header + mobile bottom tabs.
  */
 export default async function AppLayout({
   children,
@@ -17,9 +17,9 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-dvh flex-col">
       <TrackOnMount event="session_started" />
-      <TopBar />
+      <AppHeader />
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">{children}</main>
-      <BottomNav />
+      <BottomTabs />
     </div>
   );
 }
