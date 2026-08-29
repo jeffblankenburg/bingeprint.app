@@ -35,7 +35,7 @@ export function RecCard({
   if (gone) return null;
 
   return (
-    <div className="w-40 shrink-0">
+    <div className="flex w-40 shrink-0 flex-col">
       <Link href={`/show/${tmdbId}`}>
         <div className="aspect-[2/3] w-full overflow-hidden rounded-lg border bg-secondary">
           {posterPath ? (
@@ -46,13 +46,16 @@ export function RecCard({
         </div>
         <p className="mt-1.5 line-clamp-1 text-sm font-medium">{name}</p>
       </Link>
-      {because.length > 0 && (
-        <p className="mt-0.5 line-clamp-2 text-[11px] leading-tight text-muted-foreground">
-          Because you loved{" "}
-          <span className="text-foreground">{because.join(", ")}</span>
-        </p>
-      )}
-      <div className="mt-2 flex items-center gap-1">
+      {/* Fixed 2-line height so button rows align across cards regardless of wrap */}
+      <p className="mt-0.5 line-clamp-2 min-h-[1.75rem] text-[11px] leading-tight text-muted-foreground">
+        {because.length > 0 && (
+          <>
+            Because you loved{" "}
+            <span className="text-foreground">{because.join(", ")}</span>
+          </>
+        )}
+      </p>
+      <div className="mt-auto flex items-center gap-1 pt-2">
         <button
           onClick={() => feedback("interested")}
           aria-label="Add to watchlist"
