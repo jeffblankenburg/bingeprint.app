@@ -18,7 +18,7 @@ export async function AppHeader() {
   } = await supabase.auth.getUser();
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+    <header className="pt-safe sticky top-0 z-50 border-b bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/70">
       {/* Signature SMPTE test-pattern strip on every page */}
       <SmpteBars height="3px" />
       <div className="mx-auto flex h-14 w-full max-w-3xl items-center justify-between gap-3 px-4">

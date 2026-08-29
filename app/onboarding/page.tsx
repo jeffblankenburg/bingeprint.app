@@ -27,7 +27,7 @@ export default async function OnboardingPage() {
     .slice(0, 30);
 
   return (
-    <main className="min-h-dvh">
+    <main className="pt-safe min-h-dvh">
       <SmpteBars height="4px" />
       <TrackOnMount event="onboarding_started" />
       <div className="mx-auto w-full max-w-3xl px-4 py-6">

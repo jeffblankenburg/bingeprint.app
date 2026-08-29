@@ -30,7 +30,7 @@ const SAMPLE_PRINT = [
 
 export default function LandingPage() {
   return (
-    <main className="relative flex min-h-dvh flex-col">
+    <main className="pt-safe relative flex min-h-dvh flex-col">
       <TrackOnMount event="landing_page_viewed" />
       <SmpteBars height="8px" />
 

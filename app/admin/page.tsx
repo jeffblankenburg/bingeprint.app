@@ -37,7 +37,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <main className="min-h-dvh">
+    <main className="pt-safe min-h-dvh">
       <SmpteBars height="6px" />
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <header className="mb-8 flex items-center justify-between">

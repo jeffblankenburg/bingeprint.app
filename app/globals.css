@@ -166,6 +166,12 @@
   }
 }
 
+/* Clear the top safe area (status bar / Dynamic Island) under viewport-fit=cover.
+   Applied to the sticky header + any page whose content starts at the top edge. */
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
 /* ── SMPTE bar strip — the signature motif ──────────────────────────────────
    Used for the logo, dividers, loading states, progress. */
 @utility smpte-bars {
