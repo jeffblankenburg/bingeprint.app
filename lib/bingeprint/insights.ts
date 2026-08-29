@@ -8,8 +8,7 @@ export type Insights = {
   minutes_watched: number;
   shows_completed: number;
   genres: { name: string; episodes: number; pct: number }[];
-  networks: { name: string; episodes: number }[];
-  people: { name: string; episodes: number }[];
+  people: { tmdb_id: number; name: string; profile_path: string | null; episodes: number }[];
   decades: { decade: number; episodes: number }[];
 };
 
@@ -19,7 +18,6 @@ const EMPTY: Insights = {
   minutes_watched: 0,
   shows_completed: 0,
   genres: [],
-  networks: [],
   people: [],
   decades: [],
 };

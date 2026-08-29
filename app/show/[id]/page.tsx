@@ -51,7 +51,7 @@ export default async function ShowPage({
   const { id } = await params;
   const core = await getShowCore(Number(id));
   if (!core) notFound();
-  const { show, genres, networks, watch, cast, seasons } = core;
+  const { show, genres, watch, cast, seasons } = core;
 
   const supabase = await createClient();
   const {
@@ -166,12 +166,6 @@ export default async function ShowPage({
               US availability · via JustWatch
             </p>
           </section>
-        )}
-
-        {networks.length > 0 && (
-          <p className="mt-4 text-xs text-muted-foreground">
-            Originally on {networks.map((n) => n.name).join(" · ")}
-          </p>
         )}
 
         {show.overview && (
