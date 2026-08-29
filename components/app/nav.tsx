@@ -47,11 +47,18 @@ export function TopNav() {
   );
 }
 
-/** Mobile bottom tab bar — hidden on desktop. */
+/**
+ * Mobile bottom tab bar — hidden on desktop. Fixed to the viewport bottom so it
+ * shows regardless of page height (sticky failed on min-h-dvh pages). Respects
+ * the iOS home-indicator safe area.
+ */
 export function BottomTabs() {
   const isActive = useActive();
   return (
-    <nav className="sticky bottom-0 z-40 border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:hidden">
+    <nav
+      className="fixed inset-x-0 bottom-0 z-50 border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 md:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <div className="mx-auto flex w-full max-w-3xl items-stretch justify-around">
         {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
           const active = isActive(href);

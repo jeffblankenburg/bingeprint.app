@@ -18,7 +18,9 @@ export default async function AppLayout({
     <div className="flex min-h-dvh flex-col">
       <TrackOnMount event="session_started" />
       <AppHeader />
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-5">{children}</main>
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-5 pb-24 md:pb-8">
+        {children}
+      </main>
       <BottomTabs />
     </div>
   );
