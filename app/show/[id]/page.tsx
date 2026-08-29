@@ -73,7 +73,7 @@ export default async function ShowPage({
   return (
     <>
       <AppHeader />
-      <main className="relative min-h-dvh pb-24 md:pb-16">
+      <main className="pb-bottom-nav relative min-h-dvh">
         {/* Backdrop — framed to the upper area so faces aren't cropped */}
         <div className="relative h-40 w-full overflow-hidden bg-secondary sm:h-64 md:h-72">
           {show.backdrop_path && (

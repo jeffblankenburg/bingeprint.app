@@ -41,7 +41,7 @@ export default async function PersonPage({
   return (
     <>
       <AppHeader />
-      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6 md:pb-16">
+      <main className="pb-bottom-nav mx-auto w-full max-w-3xl px-4 pt-6">
         {/* Profile */}
         <div className="flex gap-4">
           <div className="aspect-[2/3] w-24 shrink-0 self-start overflow-hidden rounded-lg border bg-secondary shadow-lg sm:w-32">

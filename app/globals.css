@@ -152,6 +152,20 @@
   }
 }
 
+/* ── Bottom-nav clearance ────────────────────────────────────────────────────
+   The fixed mobile tab bar grows with the iOS home-indicator safe area, so page
+   content must clear the nav height PLUS that same safe area — otherwise the last
+   content hides behind it. Single source of truth; used on every page that shows
+   the bottom tabs. Desktop hides the tabs, so clearance drops. */
+.pb-bottom-nav {
+  padding-bottom: calc(env(safe-area-inset-bottom) + 5rem);
+}
+@media (min-width: 768px) {
+  .pb-bottom-nav {
+    padding-bottom: 2rem;
+  }
+}
+
 /* ── SMPTE bar strip — the signature motif ──────────────────────────────────
    Used for the logo, dividers, loading states, progress. */
 @utility smpte-bars {
