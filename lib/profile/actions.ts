@@ -1,14 +1,8 @@
 "use server";
 
-import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
-
-const usernameSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .regex(/^[a-z0-9_]{3,30}$/);
+import { validateUsername } from "@/lib/username";
 
 export type ProfileState = { ok: boolean; error?: string; saved?: boolean };
 
@@ -34,11 +28,11 @@ export async function updateProfile(
   };
 
   if (usernameRaw) {
-    const parsed = usernameSchema.safeParse(usernameRaw);
-    if (!parsed.success) {
-      return { ok: false, error: "Username must be 3–30 chars: a–z, 0–9, or _" };
+    const check = validateUsername(usernameRaw);
+    if (!check.ok) {
+      return { ok: false, error: check.error };
     }
-    patch.username = parsed.data;
+    patch.username = check.value;
   }
 
   const { error } = await supabase.from("profiles").update(patch).eq("id", user.id);
