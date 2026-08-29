@@ -1,12 +1,19 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
-import { Search as SearchIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getContinueWatching } from "@/lib/tracking/queries";
 import { PerfectForYou } from "@/components/recommendations/perfect-for-you";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
+
+export const metadata: Metadata = { title: "Home" };
+
+const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
+
+function epCode(s: number, e: number) {
+  return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
+}
 
 function RecsSkeleton() {
   return (
@@ -20,14 +27,6 @@ function RecsSkeleton() {
     </div>
   );
 }
-
-function epCode(s: number, e: number) {
-  return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
-}
-
-export const metadata: Metadata = { title: "Home" };
-
-const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
 
 type Row = {
   status: ShowStatus;
@@ -65,8 +64,7 @@ function PosterCard({ show }: { show: NonNullable<Row["shows"]> }) {
 
 export default async function DashboardPage() {
   const { user, profile, supabase } = await requireUser();
-  const name =
-    profile?.display_name?.trim() || user.email?.split("@")[0] || "there";
+  const name = profile?.display_name?.trim() || user.email?.split("@")[0] || "there";
 
   const { data } = await supabase
     .from("user_shows")
@@ -89,13 +87,6 @@ export default async function DashboardPage() {
   const continueWatching = await getContinueWatching(supabase, user.id);
   const recent = rows.slice(0, 12);
 
-  const stats = [
-    { label: "In library", value: counts.total ?? 0 },
-    { label: "Watching", value: counts.watching ?? 0 },
-    { label: "Watched", value: counts.watched ?? 0 },
-    { label: "Want to Watch", value: counts.want_to_watch ?? 0 },
-  ];
-
   return (
     <div className="space-y-8">
       <div className="space-y-1">
@@ -105,23 +96,23 @@ export default async function DashboardPage() {
         <h1 className="font-display text-3xl font-bold tracking-tight">
           Welcome, {name}.
         </h1>
+        {rows.length > 0 && (
+          <p className="font-mono text-xs text-muted-foreground">
+            {counts.total} in library · {counts.watching ?? 0} watching ·{" "}
+            {counts.watched ?? 0} watched ·{" "}
+            <Link href="/insights" className="text-primary hover:underline">
+              Insights →
+            </Link>
+          </p>
+        )}
       </div>
-
-      {/* Search entry point */}
-      <Link
-        href="/search"
-        className="flex items-center gap-2 rounded-md border border-input bg-card px-4 py-3 text-muted-foreground transition-colors hover:border-ring"
-      >
-        <SearchIcon className="size-5" />
-        <span className="text-sm">Search shows, actors, creators…</span>
-      </Link>
 
       {rows.length === 0 ? (
         <div className="overflow-hidden rounded-xl border bg-card">
           <SmpteBars height="5px" />
           <div className="space-y-3 p-8 text-center">
             <p className="text-sm text-muted-foreground">
-              Your Bingeprint starts here. Find a show you&rsquo;ve watched and
+              Your Bingeprint starts here. Search a show you&rsquo;ve watched and
               add it — the more you track, the smarter it gets.
             </p>
             <Link
@@ -134,22 +125,7 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <>
-          {/* Quick stats */}
-          <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {stats.map((s) => (
-              <div key={s.label} className="rounded-xl border bg-card p-4">
-                <p className="tabular font-mono text-2xl font-bold">{s.value}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            ))}
-          </section>
-
-          {/* Perfect For You — recommendations (generated on first view) */}
-          <Suspense fallback={<RecsSkeleton />}>
-            <PerfectForYou userId={user.id} />
-          </Suspense>
-
-          {/* Continue watching — next unwatched episode per in-progress show */}
+          {/* 1 — Continue Watching (the point of the app) */}
           {continueWatching.length > 0 && (
             <section className="space-y-3">
               <h2 className="font-display text-lg font-semibold">Continue Watching</h2>
@@ -190,7 +166,12 @@ export default async function DashboardPage() {
             </section>
           )}
 
-          {/* Recently added */}
+          {/* 2 — Perfect For You (recommendations, generated on first view) */}
+          <Suspense fallback={<RecsSkeleton />}>
+            <PerfectForYou userId={user.id} />
+          </Suspense>
+
+          {/* 3 — Recently Added */}
           <section className="space-y-3">
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-lg font-semibold">Recently Added</h2>
