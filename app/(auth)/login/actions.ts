@@ -87,6 +87,11 @@ export async function verifyLoginCode(
   });
   await flushServerAnalytics();
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("onboarded_at")
+    .eq("id", data.user.id)
+    .maybeSingle();
   const next = String(formData.get("next") ?? "/dashboard");
-  redirect(next);
+  redirect(profile?.onboarded_at ? next : "/onboarding");
 }

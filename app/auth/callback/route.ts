@@ -30,8 +30,16 @@ export async function GET(request: NextRequest) {
   });
   await flushServerAnalytics();
 
-  // Send brand-new users to onboarding once it exists; safe today because the
-  // proxy will resolve /onboarding, and dashboard is the fallback.
-  const destination = next.startsWith("/") ? next : "/dashboard";
+  // Brand-new / not-yet-onboarded users go to onboarding first.
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("onboarded_at")
+    .eq("id", data.user.id)
+    .maybeSingle();
+  const destination = profile?.onboarded_at
+    ? next.startsWith("/")
+      ? next
+      : "/dashboard"
+    : "/onboarding";
   return NextResponse.redirect(`${origin}${destination}`);
 }
