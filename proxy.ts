@@ -17,7 +17,7 @@ const PROTECTED_PREFIXES = [
   '/search',
   '/upcoming',
   '/insights',
-  '/settings',
+  '/profile',
   '/onboarding',
   '/admin',
 ];

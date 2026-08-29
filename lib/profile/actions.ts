@@ -47,7 +47,7 @@ export async function updateProfile(
     return { ok: false, error: error.message };
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/profile");
   return { ok: true, saved: true };
 }
 
@@ -73,7 +73,7 @@ export async function setStreamingServices(
     if (error) return { ok: false, error: error.message };
   }
 
-  revalidatePath("/settings");
+  revalidatePath("/profile");
   return { ok: true };
 }
 

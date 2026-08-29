@@ -4,19 +4,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
-  Search,
   Clapperboard,
   CalendarClock,
   ChartNoAxesColumn,
+  User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Search lives in the header (always available), not in the tab bar.
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
-  { href: "/search", label: "Search", icon: Search },
   { href: "/library", label: "Library", icon: Clapperboard },
   { href: "/upcoming", label: "Upcoming", icon: CalendarClock },
   { href: "/insights", label: "Insights", icon: ChartNoAxesColumn },
+  { href: "/profile", label: "Profile", icon: User },
 ];
 
 function useActive() {

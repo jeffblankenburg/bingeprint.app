@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { LogOut } from "lucide-react";
 import { requireUser } from "@/lib/auth";
+import { signOut } from "@/lib/auth-actions";
 import { ProfileForm } from "@/components/settings/profile-form";
 import { StreamingPicker } from "@/components/settings/streaming-picker";
 import { isAdminUser } from "@/lib/admin";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = { title: "Profile" };
 
-export default async function SettingsPage() {
+export default async function ProfilePage() {
   const { user, profile, supabase } = await requireUser();
   const admin = await isAdminUser(user);
 
@@ -32,7 +34,7 @@ export default async function SettingsPage() {
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
           Account
         </p>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Settings</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Profile</h1>
       </div>
 
       <section className="space-y-4">
@@ -75,6 +77,18 @@ export default async function SettingsPage() {
           </Link>
         </section>
       )}
+
+      <section className="border-t pt-6">
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="inline-flex items-center gap-2 rounded-md border border-input px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          >
+            <LogOut className="size-4" />
+            Sign out
+          </button>
+        </form>
+      </section>
     </div>
   );
 }

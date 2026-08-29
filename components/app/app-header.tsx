@@ -1,14 +1,14 @@
 import Link from "next/link";
-import { Settings, LogOut } from "lucide-react";
+import { Search } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { signOut } from "@/lib/auth-actions";
 import { Logo } from "@/components/brand/logo";
 import { TopNav } from "@/components/app/nav";
 
 /**
  * Sticky app header used on every page (in-app and public show pages). Adapts to
- * auth: signed-in users get the full nav + settings/sign-out; signed-out users
- * get a Sign in button. The logo takes signed-in users to their dashboard.
+ * auth: signed-in users get the desktop nav + a persistent Search affordance;
+ * signed-out users get a Sign in button. Account actions (settings, streaming,
+ * sign out) live under the Profile nav destination, keeping the header clean.
  */
 export async function AppHeader() {
   const supabase = await createClient();
@@ -27,24 +27,13 @@ export async function AppHeader() {
 
         <div className="flex items-center gap-1">
           {user ? (
-            <>
-              <Link
-                href="/settings"
-                aria-label="Settings"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-              >
-                <Settings className="size-4" />
-              </Link>
-              <form action={signOut}>
-                <button
-                  type="submit"
-                  aria-label="Sign out"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-                >
-                  <LogOut className="size-4" />
-                </button>
-              </form>
-            </>
+            <Link
+              href="/search"
+              aria-label="Search"
+              className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            >
+              <Search className="size-5" />
+            </Link>
           ) : (
             <Link
               href="/login"
