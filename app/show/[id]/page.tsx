@@ -187,7 +187,11 @@ export default async function ShowPage({
             </h2>
             <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
               {cast.map(({ person, character, role }) => (
-                <div key={person.id} className="w-16 shrink-0 text-center">
+                <Link
+                  key={person.id}
+                  href={`/person/${person.tmdb_id}`}
+                  className="w-16 shrink-0 text-center"
+                >
                   <div className="mx-auto h-16 w-16 overflow-hidden rounded-full bg-secondary">
                     {person.profile_path ? (
                       <LazyImage src={`${TMDB_IMAGE}/w185${person.profile_path}`} alt={person.name} />
@@ -199,7 +203,7 @@ export default async function ShowPage({
                   <p className="truncate text-[10px] text-muted-foreground">
                     {role === "creator" ? "Creator" : character}
                   </p>
-                </div>
+                </Link>
               ))}
             </div>
           </section>

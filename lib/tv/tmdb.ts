@@ -8,6 +8,10 @@ import type {
   ProviderPerson,
   ProviderWatchOffer,
   ProviderProviderInfo,
+  ProviderEpisodeCredit,
+  ProviderPersonDetail,
+  ProviderPersonCredit,
+  CreditRole,
   SearchResults,
   ImageSize,
 } from "./provider";
@@ -266,6 +270,71 @@ export class TmdbProvider implements TVProvider {
     }
     return offers;
   }
+
+  async getEpisodeCredits(
+    showProviderId: string,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): Promise<ProviderEpisodeCredit[]> {
+    const d = await this.get<TmdbEpisodeCredits>(
+      `/tv/${showProviderId}/season/${seasonNumber}/episode/${episodeNumber}/credits`,
+    );
+    const out: ProviderEpisodeCredit[] = [];
+    for (const c of d.cast ?? [])
+      out.push({ person: mapPerson(c), role: "cast", character: c.character ?? null, order: c.order ?? null, source: "cast" });
+    for (const g of d.guest_stars ?? [])
+      out.push({ person: mapPerson(g), role: "cast", character: g.character ?? null, order: g.order ?? null, source: "guest" });
+    for (const cr of d.crew ?? []) {
+      const role = crewRole(cr.job);
+      if (!role) continue;
+      out.push({ person: mapPerson(cr), role, character: null, order: null, source: "crew" });
+    }
+    return out;
+  }
+
+  async getPerson(providerId: string): Promise<ProviderPersonDetail | null> {
+    try {
+      const d = await this.get<TmdbPersonDetail>(`/person/${providerId}`, {
+        append_to_response: "tv_credits",
+      });
+      const credits: ProviderPersonCredit[] = [];
+      for (const c of d.tv_credits?.cast ?? [])
+        credits.push({ show: mapShowSummary(c), character: c.character ?? null, role: "cast", episodeCount: c.episode_count ?? null });
+      for (const c of d.tv_credits?.crew ?? [])
+        if (c.job === "Creator")
+          credits.push({ show: mapShowSummary(c), character: "Creator", role: "creator", episodeCount: c.episode_count ?? null });
+
+      // One row per show, preferring the credit with the most episodes.
+      const byShow = new Map<string, ProviderPersonCredit>();
+      for (const c of credits) {
+        const ex = byShow.get(c.show.providerId);
+        if (!ex || (c.episodeCount ?? 0) > (ex.episodeCount ?? 0)) byShow.set(c.show.providerId, c);
+      }
+      const list = [...byShow.values()].sort(
+        (a, b) =>
+          (b.episodeCount ?? 0) - (a.episodeCount ?? 0) ||
+          (b.show.popularity ?? 0) - (a.show.popularity ?? 0),
+      );
+
+      return {
+        ...mapPerson(d),
+        biography: d.biography || null,
+        birthday: d.birthday || null,
+        credits: list,
+      };
+    } catch (err) {
+      if (err instanceof TmdbError && err.status === 404) return null;
+      throw err;
+    }
+  }
+}
+
+/** Map a TMDB crew job to our credit role (only the roles we care about). */
+function crewRole(job?: string): CreditRole | null {
+  if (!job) return null;
+  if (job === "Director") return "director";
+  if (["Writer", "Screenplay", "Teleplay", "Story"].includes(job)) return "writer";
+  return null;
 }
 
 // ── Raw TMDB → provider domain mappers ──────────────────────────────────────
@@ -398,6 +467,23 @@ interface TmdbProviderInfo {
   logo_path?: string | null;
   display_priority?: number;
   display_priorities?: Record<string, number>;
+}
+interface TmdbEpisodeCastLike extends TmdbPersonLike {
+  character?: string;
+  order?: number;
+}
+interface TmdbEpisodeCredits {
+  cast?: TmdbEpisodeCastLike[];
+  guest_stars?: TmdbEpisodeCastLike[];
+  crew?: (TmdbPersonLike & { job?: string; department?: string })[];
+}
+interface TmdbPersonDetail extends TmdbPersonLike {
+  biography?: string;
+  birthday?: string;
+  tv_credits?: {
+    cast?: (TmdbShow & { character?: string; episode_count?: number })[];
+    crew?: (TmdbShow & { job?: string; department?: string; episode_count?: number })[];
+  };
 }
 interface TmdbWatchRegion {
   flatrate?: TmdbProviderOffer[];

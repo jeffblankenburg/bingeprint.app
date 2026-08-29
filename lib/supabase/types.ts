@@ -84,10 +84,59 @@ export type Database = {
           },
         ]
       }
+      episode_credits: {
+        Row: {
+          billing_order: number | null
+          character: string | null
+          created_at: string
+          episode_id: string
+          id: string
+          person_id: string
+          role: Database["public"]["Enums"]["credit_role"]
+          source: string | null
+        }
+        Insert: {
+          billing_order?: number | null
+          character?: string | null
+          created_at?: string
+          episode_id: string
+          id?: string
+          person_id: string
+          role: Database["public"]["Enums"]["credit_role"]
+          source?: string | null
+        }
+        Update: {
+          billing_order?: number | null
+          character?: string | null
+          created_at?: string
+          episode_id?: string
+          id?: string
+          person_id?: string
+          role?: Database["public"]["Enums"]["credit_role"]
+          source?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "episode_credits_episode_id_fkey"
+            columns: ["episode_id"]
+            isOneToOne: false
+            referencedRelation: "episodes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "episode_credits_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       episodes: {
         Row: {
           air_date: string | null
           created_at: string
+          credits_synced_at: string | null
           episode_number: number
           id: string
           name: string | null
@@ -105,6 +154,7 @@ export type Database = {
         Insert: {
           air_date?: string | null
           created_at?: string
+          credits_synced_at?: string | null
           episode_number: number
           id?: string
           name?: string | null
@@ -122,6 +172,7 @@ export type Database = {
         Update: {
           air_date?: string | null
           created_at?: string
+          credits_synced_at?: string | null
           episode_number?: number
           id?: string
           name?: string | null
@@ -527,6 +578,7 @@ export type Database = {
           core_synced_at: string | null
           created_at: string
           details_synced_at: string | null
+          episode_credits_synced_at: string | null
           episode_run_time: number | null
           first_air_date: string | null
           homepage: string | null
@@ -559,6 +611,7 @@ export type Database = {
           core_synced_at?: string | null
           created_at?: string
           details_synced_at?: string | null
+          episode_credits_synced_at?: string | null
           episode_run_time?: number | null
           first_air_date?: string | null
           homepage?: string | null
@@ -591,6 +644,7 @@ export type Database = {
           core_synced_at?: string | null
           created_at?: string
           details_synced_at?: string | null
+          episode_credits_synced_at?: string | null
           episode_run_time?: number | null
           first_air_date?: string | null
           homepage?: string | null

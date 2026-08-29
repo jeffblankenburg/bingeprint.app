@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { importShow } from "@/lib/tv/ingest";
+import { enrichEpisodeCredits } from "@/lib/tv/enrich";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 import type { ShowStatus } from "@/lib/analytics/events";
 import type { TablesUpdate } from "@/lib/supabase/types";
@@ -39,14 +41,24 @@ export async function addShowToLibrary(
     );
     if (error) return { ok: false, error: error.message };
 
-    // Fill full detail (poster, episodes, cast, …) in the background so the add
-    // returns instantly and the artwork appears on the next load — the user
-    // never sees whether it was cached or fetched on demand.
+    // Fill everything in the background so the add returns instantly: full
+    // detail (poster/episodes/cast), then exact per-episode credit enrichment —
+    // so the data never looks incomplete. Enrichment is idempotent, so if
+    // another user already enriched this show it's a cheap no-op.
     after(async () => {
       try {
         await importShow(String(tmdbId));
+        const admin = createAdminClient();
+        const { data: show } = await admin
+          .from("shows")
+          .select("id, episode_credits_synced_at")
+          .eq("tmdb_id", Number(tmdbId))
+          .maybeSingle();
+        if (show && !show.episode_credits_synced_at) {
+          await enrichEpisodeCredits(show.id);
+        }
       } catch {
-        // best-effort; the show page will retry the import on visit
+        // best-effort; a cron backstop / re-visit will finish any partial work
       }
     });
 

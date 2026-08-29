@@ -3,6 +3,8 @@ import "server-only";
 import { cache } from "react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { importShowCore, importShowEpisodes } from "@/lib/tv/ingest";
+import { getProvider } from "@/lib/tv/provider";
+import type { ProviderPersonDetail } from "@/lib/tv/provider";
 import type { Tables } from "@/lib/supabase/types";
 
 const DETAIL_TTL_MS = 1000 * 60 * 60 * 24 * 3; // 3 days
@@ -13,6 +15,36 @@ export type WatchProvider = {
   logoPath: string | null;
   offerType: string;
 };
+
+/**
+ * A person's detail + full TV filmography, from the provider (cached). Also
+ * best-effort caches the person row locally. Returns null for unknown ids.
+ */
+export const getPersonDetail = cache(_getPersonDetail);
+
+async function _getPersonDetail(tmdbId: number): Promise<ProviderPersonDetail | null> {
+  const provider = getProvider();
+  const person = await provider.getPerson(String(tmdbId)).catch(() => null);
+  if (!person) return null;
+  try {
+    await createAdminClient()
+      .from("people")
+      .upsert(
+        {
+          tmdb_id: tmdbId,
+          name: person.name,
+          profile_path: person.profilePath,
+          known_for_department: person.department,
+          popularity: person.popularity ?? null,
+          synced_at: new Date().toISOString(),
+        },
+        { onConflict: "tmdb_id" },
+      );
+  } catch {
+    // caching is best-effort; the page renders from the provider response
+  }
+  return person;
+}
 
 export type ShowCore = {
   show: Tables<"shows">;

@@ -107,6 +107,29 @@ export interface ProviderProviderInfo extends ProviderRef {
   displayPriority: number;
 }
 
+export type CreditRole = "cast" | "creator" | "director" | "writer" | "producer";
+
+export interface ProviderEpisodeCredit {
+  person: ProviderPerson;
+  role: CreditRole;
+  character: string | null;
+  order: number | null;
+  source: "cast" | "guest" | "crew";
+}
+
+export interface ProviderPersonCredit {
+  show: ProviderShowSummary;
+  character: string | null;
+  role: "cast" | "creator";
+  episodeCount: number | null;
+}
+
+export interface ProviderPersonDetail extends ProviderPerson {
+  biography: string | null;
+  birthday: string | null;
+  credits: ProviderPersonCredit[];
+}
+
 export interface SearchResults {
   shows: ProviderShowSummary[];
   people: ProviderPerson[];
@@ -123,6 +146,14 @@ export interface TVProvider {
   getWatchProviders(providerId: string, region?: string): Promise<ProviderWatchOffer[]>;
   /** The full list of watch providers available in a region (for the picker). */
   getWatchProviderList(region?: string): Promise<ProviderProviderInfo[]>;
+  /** Exact per-episode credits (cast + guest stars + key crew). */
+  getEpisodeCredits(
+    showProviderId: string,
+    seasonNumber: number,
+    episodeNumber: number,
+  ): Promise<ProviderEpisodeCredit[]>;
+  /** A person's detail + TV filmography. */
+  getPerson(providerId: string): Promise<ProviderPersonDetail | null>;
   popularShows(page?: number): Promise<ProviderShowSummary[]>;
   imageUrl(path: string | null, size?: ImageSize): string | null;
 }
