@@ -811,6 +811,7 @@ export type Database = {
       catalog_upsert_skeleton: { Args: { rows: Json }; Returns: number }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      user_insights: { Args: never; Returns: Json }
     }
     Enums: {
       credit_role: "cast" | "creator" | "director" | "writer" | "producer"
