@@ -1,10 +1,25 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 import { Search as SearchIcon } from "lucide-react";
 import { requireUser } from "@/lib/auth";
 import { getContinueWatching } from "@/lib/tracking/queries";
+import { PerfectForYou } from "@/components/recommendations/perfect-for-you";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
+
+function RecsSkeleton() {
+  return (
+    <div className="flex gap-3 overflow-hidden">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div key={i} className="w-40 shrink-0">
+          <div className="aspect-[2/3] w-full animate-pulse rounded-lg bg-secondary" />
+          <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-secondary" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function epCode(s: number, e: number) {
   return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
@@ -128,6 +143,11 @@ export default async function DashboardPage() {
               </div>
             ))}
           </section>
+
+          {/* Perfect For You — recommendations (generated on first view) */}
+          <Suspense fallback={<RecsSkeleton />}>
+            <PerfectForYou userId={user.id} />
+          </Suspense>
 
           {/* Continue watching — next unwatched episode per in-progress show */}
           {continueWatching.length > 0 && (

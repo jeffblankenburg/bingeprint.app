@@ -122,6 +122,15 @@ export class TmdbProvider implements TVProvider {
     return data.results.map(mapShowSummary);
   }
 
+  async getRecommendations(providerId: string): Promise<ProviderShowSummary[]> {
+    const data = await this.get<{ results: TmdbShow[] }>(
+      `/tv/${providerId}/recommendations`,
+      {},
+      60 * 60 * 24,
+    );
+    return (data.results ?? []).map(mapShowSummary);
+  }
+
   async getShow(providerId: string): Promise<ProviderShowDetail> {
     const d = await this.get<TmdbShowDetail>(`/tv/${providerId}`, {
       append_to_response: "external_ids,aggregate_credits,images",

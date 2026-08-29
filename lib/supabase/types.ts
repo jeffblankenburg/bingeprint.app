@@ -345,6 +345,7 @@ export type Database = {
           is_admin: boolean
           is_public: boolean
           onboarded_at: string | null
+          recs_generated_at: string | null
           updated_at: string
           username: string | null
         }
@@ -357,6 +358,7 @@ export type Database = {
           is_admin?: boolean
           is_public?: boolean
           onboarded_at?: string | null
+          recs_generated_at?: string | null
           updated_at?: string
           username?: string | null
         }
@@ -369,10 +371,81 @@ export type Database = {
           is_admin?: boolean
           is_public?: boolean
           onboarded_at?: string | null
+          recs_generated_at?: string | null
           updated_at?: string
           username?: string | null
         }
         Relationships: []
+      }
+      recommendation_feedback: {
+        Row: {
+          created_at: string
+          feedback: Database["public"]["Enums"]["recommendation_feedback_kind"]
+          id: string
+          show_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          feedback: Database["public"]["Enums"]["recommendation_feedback_kind"]
+          id?: string
+          show_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          feedback?: Database["public"]["Enums"]["recommendation_feedback_kind"]
+          id?: string
+          show_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendation_feedback_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      recommendations: {
+        Row: {
+          collection: string
+          created_at: string
+          id: string
+          reason: Json
+          score: number
+          show_id: string
+          user_id: string
+        }
+        Insert: {
+          collection?: string
+          created_at?: string
+          id?: string
+          reason?: Json
+          score?: number
+          show_id: string
+          user_id: string
+        }
+        Update: {
+          collection?: string
+          created_at?: string
+          id?: string
+          reason?: Json
+          score?: number
+          show_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recommendations_show_id_fkey"
+            columns: ["show_id"]
+            isOneToOne: false
+            referencedRelation: "shows"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       release_events: {
         Row: {

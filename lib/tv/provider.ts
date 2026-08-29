@@ -154,6 +154,8 @@ export interface TVProvider {
   ): Promise<ProviderEpisodeCredit[]>;
   /** A person's detail + TV filmography. */
   getPerson(providerId: string): Promise<ProviderPersonDetail | null>;
+  /** Shows similar to a given show (the recommendation candidate source). */
+  getRecommendations(providerId: string): Promise<ProviderShowSummary[]>;
   popularShows(page?: number): Promise<ProviderShowSummary[]>;
   imageUrl(path: string | null, size?: ImageSize): string | null;
 }
