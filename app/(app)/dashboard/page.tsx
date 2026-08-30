@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getContinueWatching } from "@/lib/tracking/queries";
+import { getContinueWatching, getNewEpisodes } from "@/lib/tracking/queries";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
 
@@ -69,7 +69,13 @@ export default async function DashboardPage() {
     { total: 0 } as Record<string, number>,
   );
 
-  const continueWatching = await getContinueWatching(supabase, user.id);
+  const [newEpisodes, continueWatchingAll] = await Promise.all([
+    getNewEpisodes(supabase, user.id),
+    getContinueWatching(supabase, user.id),
+  ]);
+  // A show with a fresh drop belongs in New Episodes, not both rows.
+  const newIds = new Set(newEpisodes.map((n) => n.show.id));
+  const continueWatching = continueWatchingAll.filter((c) => !newIds.has(c.show.id));
   const recent = rows.slice(0, 12);
 
   return (
@@ -110,6 +116,52 @@ export default async function DashboardPage() {
         </div>
       ) : (
         <>
+          {/* 0 — New Episodes: a followed show just dropped something new */}
+          {newEpisodes.length > 0 && (
+            <section className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-display text-lg font-semibold">New Episodes</h2>
+                <span className="font-mono text-xs text-muted-foreground">
+                  fresh for you
+                </span>
+              </div>
+              <div className="flex gap-3 overflow-x-auto pb-2">
+                {newEpisodes.map((item) => (
+                  <Link
+                    key={item.show.id}
+                    href={`/show/${item.show.tmdb_id}`}
+                    className="w-[136px] shrink-0"
+                  >
+                    <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border border-primary/50 bg-secondary">
+                      {item.show.poster_path ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={`${TMDB_IMAGE}/w185${item.show.poster_path}`}
+                          alt={item.show.name}
+                          className="h-full w-full object-cover"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <SmpteBars height="100%" />
+                      )}
+                      <span className="absolute right-1 top-1 rounded bg-primary px-1.5 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">
+                        {item.newCount} new
+                      </span>
+                    </div>
+                    <p className="mt-1.5 line-clamp-1 text-xs font-medium">
+                      {item.show.name}
+                    </p>
+                    <p className="truncate font-mono text-[11px] text-primary">
+                      {item.resume
+                        ? `Up next ${epCode(item.resume.season_number, item.resume.episode_number)}`
+                        : `Latest ${epCode(item.latest.season_number, item.latest.episode_number)}`}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
+
           {/* 1 — Continue Watching (the point of the app) */}
           {continueWatching.length > 0 && (
             <section className="space-y-3">

@@ -16,6 +16,95 @@ export type ContinueItem = {
   caughtUp: boolean;
 };
 
+export type NewEpisodeItem = {
+  show: { id: string; tmdb_id: number; name: string; poster_path: string | null };
+  /** Unwatched episodes that aired within the recency window. */
+  newCount: number;
+  /** The most recent unwatched aired episode (the "it dropped" signal). */
+  latest: { season_number: number; episode_number: number; name: string | null; air_date: string };
+  /** The earliest unwatched aired episode — where the user should resume. */
+  resume: { season_number: number; episode_number: number } | null;
+};
+
+/**
+ * Shows the user follows that have a freshly-aired episode they haven't watched.
+ * This is the "a new episode dropped" signal that belongs at the very top of the
+ * dashboard — it covers shows the user had already completed (status = watched),
+ * which Continue Watching intentionally skips. Scoped to still-running shows so
+ * we don't scan the user's whole finished-series history.
+ */
+export async function getNewEpisodes(
+  supabase: Supabase,
+  userId: string,
+  windowDays = 30,
+): Promise<NewEpisodeItem[]> {
+  const { data: rows } = await supabase
+    .from("user_shows")
+    .select("show_id, shows(id, tmdb_id, name, poster_path, in_production, status)")
+    .eq("user_id", userId)
+    .in("status", ["watching", "watched", "paused"]);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const cutoff = new Date(Date.now() - windowDays * 86400_000).toISOString().slice(0, 10);
+
+  // Only still-running shows can have new episodes — skip ended series.
+  const ongoing = (rows ?? []).filter((r) => {
+    const s = r.shows as { in_production: boolean | null; status: string | null } | null;
+    return s && (s.in_production || /^returning/i.test(s.status ?? ""));
+  });
+
+  const items = await Promise.all(
+    ongoing.map(async (r) => {
+      const show = r.shows as NewEpisodeItem["show"] | null;
+      if (!show) return null;
+
+      const [{ data: eps }, { data: watchedRows }] = await Promise.all([
+        supabase
+          .from("episodes")
+          .select("id, season_number, episode_number, name, air_date")
+          .eq("show_id", show.id)
+          .gt("season_number", 0)
+          .order("season_number", { ascending: true })
+          .order("episode_number", { ascending: true }),
+        supabase
+          .from("user_episodes")
+          .select("episode_id")
+          .eq("user_id", userId)
+          .eq("show_id", show.id),
+      ]);
+
+      const watched = new Set((watchedRows ?? []).map((w) => w.episode_id));
+      const allEps = eps ?? [];
+      const unwatchedAired = allEps.filter(
+        (e) => e.air_date && e.air_date <= today && !watched.has(e.id),
+      );
+      const fresh = unwatchedAired.filter((e) => e.air_date! >= cutoff);
+      if (fresh.length === 0) return null;
+
+      const latestEp = fresh[fresh.length - 1]; // aired last (list is chronological)
+      const resumeEp = unwatchedAired[0]; // earliest unwatched aired
+
+      return {
+        show,
+        newCount: fresh.length,
+        latest: {
+          season_number: latestEp.season_number,
+          episode_number: latestEp.episode_number,
+          name: latestEp.name,
+          air_date: latestEp.air_date!,
+        },
+        resume: resumeEp
+          ? { season_number: resumeEp.season_number, episode_number: resumeEp.episode_number }
+          : null,
+      } satisfies NewEpisodeItem;
+    }),
+  );
+
+  return items
+    .filter((i): i is NewEpisodeItem => i !== null)
+    .sort((a, b) => b.latest.air_date.localeCompare(a.latest.air_date));
+}
+
 /**
  * For each in-progress show, the next unwatched *aired* episode — the heart of
  * the Continue Watching dashboard. N+1 over the (small) set of watching shows.
