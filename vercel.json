@@ -4,6 +4,7 @@
   "buildCommand": "next build --webpack",
   "crons": [
     { "path": "/api/cron/catalog-sync", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/generate-recs", "schedule": "0 6 * * *" }
+    { "path": "/api/cron/generate-recs", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/sync-metadata", "schedule": "0 7 * * *" }
   ]
 }
