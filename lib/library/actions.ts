@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { after } from "next/server";
 import { requireUser } from "@/lib/auth";
 import { importShow } from "@/lib/tv/ingest";
+import { markAllAiredWatched } from "@/lib/tracking/watched";
 import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 import type { ShowStatus } from "@/lib/analytics/events";
 import type { TablesUpdate } from "@/lib/supabase/types";
@@ -81,9 +82,16 @@ export async function setShowStatus(
     .eq("show_id", showId);
   if (error) return { ok: false, error: error.message };
 
+  // Marking a show Watched means every aired episode is watched (and no unaired
+  // one) — so progress is real and a future episode still surfaces as new.
+  if (to === "watched") {
+    await markAllAiredWatched(supabase, user.id, showId);
+  }
+
   await trackServer("show_status_changed", user.id, { show_id: showId, from, to });
   await flushServerAnalytics();
   revalidatePath("/library");
+  revalidatePath("/dashboard");
   return { ok: true };
 }
 

@@ -17,6 +17,18 @@ async function realEpisodeCount(supabase: Supabase, showId: string): Promise<num
   return count ?? 0;
 }
 
+/** Episodes that have actually aired — the denominator for "watched". */
+async function airedEpisodeCount(supabase: Supabase, showId: string): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { count } = await supabase
+    .from("episodes")
+    .select("*", { count: "exact", head: true })
+    .eq("show_id", showId)
+    .gt("season_number", 0)
+    .lte("air_date", today);
+  return count ?? 0;
+}
+
 async function watchedCount(supabase: Supabase, userId: string, showId: string): Promise<number> {
   const { count } = await supabase
     .from("user_episodes")
@@ -36,9 +48,10 @@ async function syncStatus(
   userId: string,
   showId: string,
 ): Promise<{ watched: number; total: number; completed: boolean }> {
-  const [watched, total] = await Promise.all([
+  const [watched, total, aired] = await Promise.all([
     watchedCount(supabase, userId, showId),
     realEpisodeCount(supabase, showId),
+    airedEpisodeCount(supabase, showId),
   ]);
 
   const { data: existing } = await supabase
@@ -48,7 +61,10 @@ async function syncStatus(
     .eq("show_id", showId)
     .maybeSingle();
 
-  const complete = total > 0 && watched >= total;
+  // "Watched" means you've seen everything that has aired — not everything that
+  // will ever air. A caught-up show flips back to Watching when a new episode
+  // drops (and surfaces in the dashboard's New Episodes row).
+  const complete = aired > 0 && watched >= aired;
   const status = complete ? "watched" : watched > 0 ? "watching" : existing?.status;
 
   if (!existing) {

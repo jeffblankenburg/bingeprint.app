@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
+import { markAllAiredWatched } from "@/lib/tracking/watched";
 import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 import type { RecommendationFeedback } from "@/lib/analytics/events";
 
@@ -58,6 +59,8 @@ export async function recordRecommendationFeedback(
         },
         { onConflict: "user_id,show_id" },
       );
+    // Keep episode progress consistent: all aired episodes watched, none unaired.
+    await markAllAiredWatched(supabase, user.id, showId);
   } else {
     await trackServer("recommendation_dismissed", user.id, {
       show_id: showId,
