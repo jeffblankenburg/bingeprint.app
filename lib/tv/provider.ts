@@ -169,6 +169,8 @@ export type DiscoverOptions = {
   genreId?: number;
   sort?: DiscoverSort;
   page?: number;
+  /** ISO-639-1 original language (e.g. "en") to bias results toward. */
+  originalLanguage?: string;
 };
 
 let cached: TVProvider | null = null;

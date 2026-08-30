@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { getContinueWatching } from "@/lib/tracking/queries";
-import { PerfectForYou } from "@/components/recommendations/perfect-for-you";
+import { RecommendationShelves } from "@/components/recommendations/shelves";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
 
@@ -166,9 +166,9 @@ export default async function DashboardPage() {
             </section>
           )}
 
-          {/* 2 — Perfect For You (recommendations, generated on first view) */}
+          {/* 2 — Recommendations: Perfect For You + taste-genre rows */}
           <Suspense fallback={<RecsSkeleton />}>
-            <PerfectForYou userId={user.id} />
+            <RecommendationShelves userId={user.id} />
           </Suspense>
 
           {/* 3 — Recently Added */}

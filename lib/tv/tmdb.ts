@@ -134,6 +134,7 @@ export class TmdbProvider implements TVProvider {
       "vote_count.gte": rating ? 200 : 0,
     };
     if (opts.genreId) params.with_genres = opts.genreId;
+    if (opts.originalLanguage) params.with_original_language = opts.originalLanguage;
     const data = await this.get<{ results: TmdbShow[] }>("/discover/tv", params, 60 * 60 * 6);
     return (data.results ?? []).map(mapShowSummary);
   }

@@ -8,15 +8,19 @@ import type { TablesInsert } from "@/lib/supabase/types";
 
 type Admin = ReturnType<typeof createAdminClient>;
 
-const MAX_SEEDS = 12;
-const IMPORT_TOP = 24; // candidates to import (poster + watch providers) before filtering
-const STORE_TOP = 20;
+const MAX_SEEDS = 14;
+const BECAUSE_ROWS = 3; // number of "Because You Loved X" rows
+const IMPORT_POOL = 70; // candidates to import (poster + watch providers) before filtering
+const PERFECT_TARGET = 14; // size of the blended "Perfect For You" row
+const BECAUSE_TARGET = 12; // size of each "Because You Loved X" row
 const REGEN_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 
 type Candidate = {
+  tmdbId: number;
   summary: ProviderShowSummary;
-  seeds: Set<string>; // seed show names that surfaced this candidate
-  weight: number;
+  seeds: Set<string>; // seed names that surfaced this via TMDB's graph
+  weight: number; // accumulated graph weight across seeds
+  bestRank: Map<string, number>; // per-seed strength, for "Because You Loved X"
 };
 
 /** True if the user has no fresh recommendations and should regenerate. */
@@ -31,39 +35,60 @@ export async function needsRecommendations(admin: Admin, userId: string): Promis
 }
 
 /**
- * Weighted-similarity recommendations. Seeds = shows the user watches/loves;
- * candidates = TMDB's "similar shows" for each seed, tallied and ranked by how
- * many seeds surface them (plus popularity), excluding what they already track
- * or dismissed, and — if they've set streaming services — filtered to shows they
- * can actually watch. Each rec keeps an explanation ("Because you loved …").
+ * Recommendation engine. Everything is derived from TMDB's show-to-show graph so
+ * it stays anchored to what the user actually loves (top-rated-by-genre browsing
+ * is a global signal, not a personal one — it surfaces beloved anime/kids shows
+ * to an adult-comedy watcher). Seeds include watched/watching shows AND onboarding
+ * ratings (loved/liked), so a brand-new user still gets recs.
+ *
+ * Two shelf types:
+ *   • "Perfect For You" — candidates surfaced by the MOST seeds (cuts across the
+ *     user's whole taste), each with a "because you loved A, B" explanation.
+ *   • "Because You Loved X" — one row per top seed, that show's closest matches.
+ *
+ * Candidates are imported wide, then HARD-filtered to the streaming services the
+ * user actually has before anything is stored.
  */
 export async function generateRecommendations(userId: string): Promise<number> {
   const admin = createAdminClient();
   const provider = getProvider();
 
-  // Seeds: favorites + watched/watching, favorites first.
-  const { data: seedRows } = await admin
-    .from("user_shows")
-    .select("is_favorite, updated_at, shows(id, tmdb_id, name)")
-    .eq("user_id", userId)
-    .in("status", ["watching", "watched"])
-    .order("is_favorite", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(MAX_SEEDS);
+  // ── Seeds: favorites/loved first, then watched/watching, then liked. ────────
+  const [{ data: showSeedRows }, { data: ratingRows }] = await Promise.all([
+    admin
+      .from("user_shows")
+      .select("is_favorite, updated_at, shows(id, tmdb_id, name)")
+      .eq("user_id", userId)
+      .in("status", ["watching", "watched"])
+      .order("is_favorite", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(MAX_SEEDS),
+    admin
+      .from("user_ratings")
+      .select("reaction, shows(id, tmdb_id, name)")
+      .eq("user_id", userId)
+      .in("reaction", ["loved", "liked"]),
+  ]);
 
-  const seeds = (seedRows ?? [])
-    .map((r) => ({
-      ...(r.shows as { id: string; tmdb_id: number; name: string } | null),
-      is_favorite: r.is_favorite,
-    }))
-    .filter((s): s is { id: string; tmdb_id: number; name: string; is_favorite: boolean } => !!s.id);
+  type Seed = { id: string; tmdb_id: number; name: string; weight: number; favorite: boolean };
+  const seedById = new Map<string, Seed>();
+  for (const r of showSeedRows ?? []) {
+    const s = r.shows as { id: string; tmdb_id: number; name: string } | null;
+    if (s?.id) seedById.set(s.id, { ...s, weight: r.is_favorite ? 2 : 1.5, favorite: r.is_favorite });
+  }
+  for (const r of ratingRows ?? []) {
+    const s = r.shows as { id: string; tmdb_id: number; name: string } | null;
+    if (!s?.id || seedById.has(s.id)) continue;
+    seedById.set(s.id, { ...s, weight: r.reaction === "loved" ? 2 : 1, favorite: r.reaction === "loved" });
+  }
+  const seeds = [...seedById.values()];
 
   if (seeds.length === 0) {
-    await admin.from("profiles").update({ recs_generated_at: new Date().toISOString() }).eq("id", userId);
+    await touch(admin, userId);
     return 0;
   }
 
-  // Exclusions: everything in the library + anything dismissed.
+  // ── Exclusions: everything in the library + anything dismissed. ─────────────
   const [{ data: libRows }, { data: fbRows }, { data: svcRows }] = await Promise.all([
     admin.from("user_shows").select("shows(tmdb_id)").eq("user_id", userId),
     admin.from("recommendation_feedback").select("shows(tmdb_id)").eq("user_id", userId),
@@ -73,11 +98,7 @@ export async function generateRecommendations(userId: string): Promise<number> {
       .eq("user_id", userId),
   ]);
   const excluded = new Set<number>();
-  for (const r of libRows ?? []) {
-    const t = (r.shows as { tmdb_id: number } | null)?.tmdb_id;
-    if (t) excluded.add(t);
-  }
-  for (const r of fbRows ?? []) {
+  for (const r of [...(libRows ?? []), ...(fbRows ?? [])]) {
     const t = (r.shows as { tmdb_id: number } | null)?.tmdb_id;
     if (t) excluded.add(t);
   }
@@ -87,99 +108,121 @@ export async function generateRecommendations(userId: string): Promise<number> {
       .filter((t): t is number => !!t),
   );
 
-  // Tally candidates from each seed's TMDB recommendations.
-  const candidates = new Map<number, Candidate>();
+  // ── Candidate pool from the graph. ──────────────────────────────────────────
+  const pool = new Map<number, Candidate>();
   await mapWithConcurrency(seeds, 6, async (seed) => {
     const recs = await provider.getRecommendations(String(seed.tmdb_id)).catch(() => []);
     recs.forEach((summary, i) => {
       const tmdbId = Number(summary.providerId);
       if (excluded.has(tmdbId)) return;
-      const existing = candidates.get(tmdbId);
-      const w = (seed.is_favorite ? 2 : 1) * (1 - i / Math.max(recs.length, 1)); // higher for top recs
-      if (existing) {
-        existing.seeds.add(seed.name);
-        existing.weight += w;
-      } else {
-        candidates.set(tmdbId, { summary, seeds: new Set([seed.name]), weight: w });
+      const rank = 1 - i / Math.max(recs.length, 1); // 1 at top, →0 at tail
+      let c = pool.get(tmdbId);
+      if (!c) {
+        c = { tmdbId, summary, seeds: new Set(), weight: 0, bestRank: new Map() };
+        pool.set(tmdbId, c);
       }
+      c.seeds.add(seed.name);
+      c.weight += seed.weight * rank;
+      c.bestRank.set(seed.name, Math.max(c.bestRank.get(seed.name) ?? 0, rank));
     });
   });
 
-  if (candidates.size === 0) {
-    await admin.from("profiles").update({ recs_generated_at: new Date().toISOString() }).eq("id", userId);
+  if (pool.size === 0) {
+    await touch(admin, userId);
     return 0;
   }
 
-  // Rank: more seeds first, then weight, then community popularity.
-  const ranked = [...candidates.values()].sort(
-    (a, b) =>
-      b.seeds.size - a.seeds.size ||
-      b.weight - a.weight ||
-      (b.summary.popularity ?? 0) - (a.summary.popularity ?? 0),
-  );
-
-  // Import core (poster + watch providers) for the top candidates.
-  const top = ranked.slice(0, IMPORT_TOP);
-  await mapWithConcurrency(top, 6, async (c) => {
+  // ── Import a wide pool (best cross-seed matches) for availability. ──────────
+  const score = (c: Candidate) => c.seeds.size * 3 + c.weight;
+  const toImport = [...pool.values()].sort((a, b) => score(b) - score(a)).slice(0, IMPORT_POOL);
+  await mapWithConcurrency(toImport, 6, async (c) => {
     await importShowCore(c.summary.providerId).catch(() => {});
   });
 
-  // Resolve local show ids + (if the user set services) filter to watchable.
-  const tmdbIds = top.map((c) => Number(c.summary.providerId));
-  const { data: showRows } = await admin
-    .from("shows")
-    .select("id, tmdb_id")
-    .in("tmdb_id", tmdbIds);
+  // ── Resolve local ids + HARD streaming filter (if the user set services). ───
+  const tmdbIds = toImport.map((c) => c.tmdbId);
+  const { data: showRows } = await admin.from("shows").select("id, tmdb_id").in("tmdb_id", tmdbIds);
   const showIdByTmdb = new Map((showRows ?? []).map((s) => [s.tmdb_id, s.id]));
 
-  let watchableShowIds: Set<string> | null = null;
+  let watchable: Set<string> | null = null;
   if (userServiceIds.size > 0) {
     const localIds = [...showIdByTmdb.values()];
     const { data: streamRows } = await admin
       .from("show_streaming")
-      .select("show_id, region, offer_type, streaming_services(tmdb_id)")
+      .select("show_id, streaming_services(tmdb_id)")
       .in("show_id", localIds)
       .eq("region", "US")
       .in("offer_type", ["flatrate", "ads", "free"]);
-    // Shows that have subscription availability, and whether it matches the user.
-    const hasUsAvail = new Set<string>();
-    const matches = new Set<string>();
+    watchable = new Set<string>();
     for (const r of streamRows ?? []) {
-      hasUsAvail.add(r.show_id);
       const t = (r.streaming_services as { tmdb_id: number } | null)?.tmdb_id;
-      if (t && userServiceIds.has(t)) matches.add(r.show_id);
+      if (t && userServiceIds.has(t)) watchable.add(r.show_id);
     }
-    // Keep: matches, or shows with no known US subscription availability (unknown).
-    watchableShowIds = new Set(
-      localIds.filter((id) => matches.has(id) || !hasUsAvail.has(id)),
+  }
+
+  const eligible = toImport
+    .map((c) => ({ c, showId: showIdByTmdb.get(c.tmdbId) }))
+    .filter((x): x is { c: Candidate; showId: string } =>
+      !!x.showId && (watchable ? watchable.has(x.showId) : true),
     );
-  }
+  const byTmdb = new Map(eligible.map((x) => [x.c.tmdbId, x]));
 
-  const finalRecs: TablesInsert<"recommendations">[] = [];
-  for (const c of top) {
-    const showId = showIdByTmdb.get(Number(c.summary.providerId));
-    if (!showId) continue;
-    if (watchableShowIds && !watchableShowIds.has(showId)) continue;
-    finalRecs.push({
-      user_id: userId,
-      show_id: showId,
-      collection: "perfect_for_you",
-      score: c.seeds.size * 100 + c.weight,
-      reason: { because: [...c.seeds].slice(0, 3) },
+  // ── Assemble shelves. A show lands in one row only. ─────────────────────────
+  const used = new Set<string>();
+  const recs: TablesInsert<"recommendations">[] = [];
+
+  // Perfect For You: strongest cross-seed matches.
+  eligible
+    .slice()
+    .sort((a, b) => score(b.c) - score(a.c))
+    .slice(0, PERFECT_TARGET)
+    .forEach(({ c, showId }) => {
+      used.add(showId);
+      recs.push({
+        user_id: userId,
+        show_id: showId,
+        collection: "perfect_for_you",
+        score: score(c),
+        reason: { because: [...c.seeds].slice(0, 3) },
+      });
     });
-    if (finalRecs.length >= STORE_TOP) break;
+
+  // Because You Loved X: one row per top seed (favorites/most-recent first),
+  // that seed's closest still-unused matches.
+  let rows = 0;
+  for (const seed of seeds) {
+    if (rows >= BECAUSE_ROWS) break;
+    const picks = eligible
+      .filter((x) => !used.has(x.showId) && x.c.bestRank.has(seed.name))
+      .sort((a, b) => (b.c.bestRank.get(seed.name)! - a.c.bestRank.get(seed.name)!))
+      .slice(0, BECAUSE_TARGET);
+    if (picks.length < 3) continue; // skip thin rows
+    rows++;
+    for (const { c, showId } of picks) {
+      used.add(showId);
+      recs.push({
+        user_id: userId,
+        show_id: showId,
+        collection: `because_${seed.tmdb_id}`,
+        score: c.bestRank.get(seed.name)! * 10,
+        reason: { seed: seed.name },
+      });
+    }
   }
 
-  // Replace this user's recs for the collection.
-  await admin
-    .from("recommendations")
-    .delete()
-    .eq("user_id", userId)
-    .eq("collection", "perfect_for_you");
-  if (finalRecs.length) await admin.from("recommendations").insert(finalRecs);
-  await admin.from("profiles").update({ recs_generated_at: new Date().toISOString() }).eq("id", userId);
+  // ── Replace this user's recs. ───────────────────────────────────────────────
+  await admin.from("recommendations").delete().eq("user_id", userId);
+  if (recs.length) await admin.from("recommendations").insert(recs);
+  await touch(admin, userId);
 
-  return finalRecs.length;
+  return recs.length;
+}
+
+async function touch(admin: Admin, userId: string) {
+  await admin
+    .from("profiles")
+    .update({ recs_generated_at: new Date().toISOString() })
+    .eq("id", userId);
 }
 
 async function mapWithConcurrency<T>(
