@@ -26,113 +26,96 @@ const GENRES: { id: number; name: string }[] = [
   { id: 37, name: "Western" },
 ];
 
-const SORTS: { key: DiscoverSort; label: string }[] = [
-  { key: "popularity", label: "Popular" },
-  { key: "rating", label: "Top Rated" },
+type Tab = "for-you" | "popular" | "top-rated";
+const TABS: { key: Tab; label: string }[] = [
+  { key: "for-you", label: "Recommendations" },
+  { key: "popular", label: "Popular" },
+  { key: "top-rated", label: "Top Rated" },
 ];
 
 const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
 
-function hrefFor(genreId: number | null, sort: DiscoverSort) {
-  const p = new URLSearchParams();
+function tabHref(tab: Tab, genreId?: number | null) {
+  if (tab === "for-you") return "/discover";
+  const p = new URLSearchParams({ tab });
   if (genreId) p.set("genre", String(genreId));
-  if (sort !== "popularity") p.set("sort", sort);
-  const qs = p.toString();
-  return qs ? `/discover?${qs}` : "/discover";
+  return `/discover?${p.toString()}`;
 }
 
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ genre?: string; sort?: string }>;
+  searchParams: Promise<{ tab?: string; genre?: string }>;
 }) {
   const { user } = await requireUser();
   const sp = await searchParams;
+  const tab: Tab =
+    sp.tab === "popular" ? "popular" : sp.tab === "top-rated" ? "top-rated" : "for-you";
   const genreId = sp.genre ? Number(sp.genre) : null;
-  const sort: DiscoverSort = sp.sort === "rating" ? "rating" : "popularity";
-  const activeGenre = GENRES.find((g) => g.id === genreId) ?? null;
-
-  const shows = await getProvider()
-    .discoverShows({ genreId: genreId ?? undefined, sort })
-    .catch(() => []);
-
-  const heading = activeGenre ? activeGenre.name : "Everything";
-  const subheading =
-    sort === "rating" ? "Highest rated" : "Most popular right now";
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="space-y-1">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
           Discover
         </p>
-        <h1 className="font-display text-3xl font-bold tracking-tight">For You</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Discover</h1>
       </div>
 
-      {/* Recommendations first — the reason to open this tab. */}
-      <Suspense fallback={<RecsSkeleton />}>
-        <RecommendationShelves userId={user.id} />
-      </Suspense>
-
-      {/* Browse the whole catalog by genre + rating/popularity. */}
-      <div className="space-y-5 border-t pt-6">
-        <h2 className="font-display text-lg font-semibold">Browse everything</h2>
-
-      {/* Sort toggle */}
-      <div className="inline-flex rounded-lg border bg-card p-0.5">
-        {SORTS.map((s) => {
-          const active = s.key === sort;
-          return (
-            <Link
-              key={s.key}
-              href={hrefFor(genreId, s.key)}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {s.label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Genre chips — horizontal scroll on mobile */}
+      {/* Tabs */}
       <div className="-mx-4 overflow-x-auto px-4">
-        <div className="flex w-max gap-2 pb-1">
-          <Link
-            href={hrefFor(null, sort)}
-            className={`shrink-0 rounded-full border px-3 py-1 text-sm transition-colors ${
-              genreId === null
-                ? "border-primary bg-primary/15 text-foreground"
-                : "bg-card text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            All
-          </Link>
-          {GENRES.map((g) => {
-            const active = g.id === genreId;
+        <div className="flex w-max gap-1 rounded-lg border bg-card p-0.5">
+          {TABS.map((t) => {
+            const active = t.key === tab;
             return (
               <Link
-                key={g.id}
-                href={hrefFor(g.id, sort)}
-                className={`shrink-0 rounded-full border px-3 py-1 text-sm transition-colors ${
+                key={t.key}
+                href={tabHref(t.key)}
+                className={`whitespace-nowrap rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
                   active
-                    ? "border-primary bg-primary/15 text-foreground"
-                    : "bg-card text-muted-foreground hover:text-foreground"
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {g.name}
+                {t.label}
               </Link>
             );
           })}
         </div>
       </div>
 
-      <div className="flex items-baseline justify-between">
-        <h2 className="font-display text-lg font-semibold">{heading}</h2>
-        <span className="font-mono text-xs text-muted-foreground">{subheading}</span>
+      {tab === "for-you" ? (
+        <Suspense fallback={<RecsSkeleton />}>
+          <RecommendationShelves userId={user.id} />
+        </Suspense>
+      ) : (
+        <BrowseGrid tab={tab} genreId={genreId} />
+      )}
+    </div>
+  );
+}
+
+async function BrowseGrid({ tab, genreId }: { tab: Tab; genreId: number | null }) {
+  const sort: DiscoverSort = tab === "top-rated" ? "rating" : "popularity";
+  const shows = await getProvider()
+    .discoverShows({ genreId: genreId ?? undefined, sort })
+    .catch(() => []);
+
+  return (
+    <div className="space-y-5">
+      {/* Genre chips — horizontal scroll on mobile */}
+      <div className="-mx-4 overflow-x-auto px-4">
+        <div className="flex w-max gap-2 pb-1">
+          <GenreChip label="All" href={tabHref(tab, null)} active={genreId === null} />
+          {GENRES.map((g) => (
+            <GenreChip
+              key={g.id}
+              label={g.name}
+              href={tabHref(tab, g.id)}
+              active={g.id === genreId}
+            />
+          ))}
+        </div>
       </div>
 
       {shows.length === 0 ? (
@@ -156,7 +139,7 @@ export default async function DiscoverPage({
                     ) : (
                       <SmpteBars height="100%" />
                     )}
-                    {sort === "rating" && rating && (
+                    {tab === "top-rated" && rating && (
                       <span className="absolute right-1 top-1 rounded bg-background/85 px-1.5 py-0.5 font-mono text-[11px] font-semibold tabular-nums backdrop-blur">
                         ★ {rating}
                       </span>
@@ -174,8 +157,22 @@ export default async function DiscoverPage({
           })}
         </ul>
       )}
-      </div>
     </div>
+  );
+}
+
+function GenreChip({ label, href, active }: { label: string; href: string; active: boolean }) {
+  return (
+    <Link
+      href={href}
+      className={`shrink-0 rounded-full border px-3 py-1 text-sm transition-colors ${
+        active
+          ? "border-primary bg-primary/15 text-foreground"
+          : "bg-card text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+    </Link>
   );
 }
 
