@@ -67,6 +67,15 @@ export function ProfileForm({
         </span>
       </label>
 
+      {isPublic && username && (
+        <a
+          href={`/${username}`}
+          className="inline-flex items-center gap-1 font-mono text-xs text-primary hover:underline"
+        >
+          View your public profile → bingeprint.app/{username}
+        </a>
+      )}
+
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}
       {state.saved && !state.error && (
         <p className="text-sm text-primary">Saved.</p>

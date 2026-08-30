@@ -26,3 +26,15 @@ export async function requireUser() {
 
   return { user, profile: profile as Profile | null, supabase };
 }
+
+/**
+ * Loads the current user without redirecting — returns null when logged out.
+ * Use on public pages that render differently for signed-in visitors.
+ */
+export async function getOptionalUser() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  return user;
+}
