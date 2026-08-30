@@ -130,6 +130,12 @@ export default async function InsightsPage() {
                   </li>
                 ))}
               </ol>
+              {insights.people_estimated && (
+                <p className="pt-1 font-mono text-[11px] leading-snug text-muted-foreground">
+                  Counts are exact where per-episode cast data exists; for episodes
+                  without it, we estimate from the show&rsquo;s main cast.
+                </p>
+              )}
             </section>
           )}
 

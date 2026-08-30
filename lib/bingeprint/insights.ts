@@ -9,6 +9,7 @@ export type Insights = {
   shows_completed: number;
   genres: { name: string; episodes: number; pct: number }[];
   people: { tmdb_id: number; name: string; profile_path: string | null; episodes: number }[];
+  people_estimated: boolean;
   decades: { decade: number; episodes: number }[];
 };
 
@@ -19,6 +20,7 @@ const EMPTY: Insights = {
   shows_completed: 0,
   genres: [],
   people: [],
+  people_estimated: false,
   decades: [],
 };
 
