@@ -1,37 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { LibraryControls } from "@/components/library/library-controls";
+import { LibraryView, type LibraryItem } from "@/components/library/library-view";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
 
 export const metadata: Metadata = { title: "Library" };
 
-const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
-
-const STATUS_ORDER: ShowStatus[] = [
-  "watching",
-  "want_to_watch",
-  "watched",
-  "paused",
-  "abandoned",
-];
-const STATUS_LABELS: Record<ShowStatus, string> = {
-  watching: "Watching",
-  want_to_watch: "Want to Watch",
-  watched: "Watched",
-  paused: "Paused",
-  abandoned: "Abandoned",
-};
-
 type Row = {
   status: ShowStatus;
+  added_at: string;
   shows: {
     id: string;
     tmdb_id: number;
     name: string;
     poster_path: string | null;
     first_air_date: string | null;
+    last_air_date: string | null;
     number_of_episodes: number | null;
   } | null;
 };
@@ -42,19 +27,25 @@ export default async function LibraryPage() {
   const { data } = await supabase
     .from("user_shows")
     .select(
-      "status, added_at, shows(id, tmdb_id, name, poster_path, first_air_date, number_of_episodes)",
+      "status, added_at, shows(id, tmdb_id, name, poster_path, first_air_date, last_air_date, number_of_episodes)",
     )
     .eq("user_id", user.id)
     .order("added_at", { ascending: false });
 
   const rows = (data ?? []) as Row[];
-  const byStatus = new Map<ShowStatus, Row[]>();
-  for (const r of rows) {
-    if (!r.shows) continue;
-    const list = byStatus.get(r.status) ?? [];
-    list.push(r);
-    byStatus.set(r.status, list);
-  }
+  const items: LibraryItem[] = rows
+    .filter((r) => r.shows)
+    .map((r) => ({
+      id: r.shows!.id,
+      tmdb_id: r.shows!.tmdb_id,
+      name: r.shows!.name,
+      poster_path: r.shows!.poster_path,
+      year: r.shows!.first_air_date?.slice(0, 4) ?? null,
+      episodes: r.shows!.number_of_episodes,
+      status: r.status,
+      added_at: r.added_at,
+      last_air: r.shows!.last_air_date,
+    }));
 
   return (
     <div className="space-y-8">
@@ -66,11 +57,11 @@ export default async function LibraryPage() {
           <h1 className="font-display text-3xl font-bold tracking-tight">Library</h1>
         </div>
         <span className="font-mono text-sm text-muted-foreground">
-          {rows.length} {rows.length === 1 ? "show" : "shows"}
+          {items.length} {items.length === 1 ? "show" : "shows"}
         </span>
       </div>
 
-      {rows.length === 0 ? (
+      {items.length === 0 ? (
         <div className="overflow-hidden rounded-xl border bg-card">
           <SmpteBars height="5px" />
           <div className="space-y-3 p-8 text-center">
@@ -86,55 +77,7 @@ export default async function LibraryPage() {
           </div>
         </div>
       ) : (
-        STATUS_ORDER.filter((s) => byStatus.has(s)).map((statusKey) => (
-          <section key={statusKey} className="space-y-3">
-            <h2 className="font-display text-lg font-semibold">
-              {STATUS_LABELS[statusKey]}
-              <span className="ml-2 font-mono text-sm font-normal text-muted-foreground">
-                {byStatus.get(statusKey)!.length}
-              </span>
-            </h2>
-            <ul className="divide-y rounded-xl border bg-card">
-              {byStatus.get(statusKey)!.map(({ shows: show }) => (
-                <li key={show!.id} className="flex items-start gap-3 p-3">
-                  <Link
-                    href={`/show/${show!.tmdb_id}`}
-                    className="shrink-0"
-                    aria-label={show!.name}
-                  >
-                    <div className="h-[68px] w-[46px] overflow-hidden rounded bg-secondary">
-                      {show!.poster_path ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={`${TMDB_IMAGE}/w92${show!.poster_path}`}
-                          alt=""
-                          className="h-full w-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <SmpteBars height="100%" />
-                      )}
-                    </div>
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <Link href={`/show/${show!.tmdb_id}`}>
-                      <p className="line-clamp-2 font-medium leading-tight">{show!.name}</p>
-                    </Link>
-                    <p className="mt-0.5 font-mono text-xs text-muted-foreground">
-                      {show!.first_air_date?.slice(0, 4) ?? "—"}
-                      {show!.number_of_episodes
-                        ? ` · ${show!.number_of_episodes} eps`
-                        : ""}
-                    </p>
-                    <div className="mt-2">
-                      <LibraryControls showId={show!.id} status={statusKey} />
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))
+        <LibraryView items={items} />
       )}
     </div>
   );
