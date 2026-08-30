@@ -21,7 +21,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next = "/dashboard", error } = await searchParams;
+  const { next = "/discover", error } = await searchParams;
 
   // Already signed in? Skip straight into the app.
   const supabase = await createClient();

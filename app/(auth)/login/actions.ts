@@ -33,7 +33,7 @@ export async function sendLoginCode(
 
   const supabase = await createClient();
   const origin = await getOrigin();
-  const next = String(formData.get("next") ?? "/dashboard");
+  const next = String(formData.get("next") ?? "/discover");
 
   const { error } = await supabase.auth.signInWithOtp({
     email,
@@ -92,6 +92,6 @@ export async function verifyLoginCode(
     .select("onboarded_at")
     .eq("id", data.user.id)
     .maybeSingle();
-  const next = String(formData.get("next") ?? "/dashboard");
+  const next = String(formData.get("next") ?? "/discover");
   redirect(profile?.onboarded_at ? next : "/onboarding");
 }

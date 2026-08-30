@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { requireUser } from "@/lib/auth";
 import { getProvider } from "@/lib/tv/provider";
 import type { DiscoverSort } from "@/lib/tv/provider";
+import { RecommendationShelves } from "@/components/recommendations/shelves";
 import { LazyImage } from "@/components/ui/lazy-image";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 
@@ -43,6 +46,7 @@ export default async function DiscoverPage({
 }: {
   searchParams: Promise<{ genre?: string; sort?: string }>;
 }) {
+  const { user } = await requireUser();
   const sp = await searchParams;
   const genreId = sp.genre ? Number(sp.genre) : null;
   const sort: DiscoverSort = sp.sort === "rating" ? "rating" : "popularity";
@@ -57,13 +61,22 @@ export default async function DiscoverPage({
     sort === "rating" ? "Highest rated" : "Most popular right now";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <div className="space-y-1">
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
           Discover
         </p>
-        <h1 className="font-display text-3xl font-bold tracking-tight">Browse</h1>
+        <h1 className="font-display text-3xl font-bold tracking-tight">For You</h1>
       </div>
+
+      {/* Recommendations first — the reason to open this tab. */}
+      <Suspense fallback={<RecsSkeleton />}>
+        <RecommendationShelves userId={user.id} />
+      </Suspense>
+
+      {/* Browse the whole catalog by genre + rating/popularity. */}
+      <div className="space-y-5 border-t pt-6">
+        <h2 className="font-display text-lg font-semibold">Browse everything</h2>
 
       {/* Sort toggle */}
       <div className="inline-flex rounded-lg border bg-card p-0.5">
@@ -161,6 +174,20 @@ export default async function DiscoverPage({
           })}
         </ul>
       )}
+      </div>
+    </div>
+  );
+}
+
+function RecsSkeleton() {
+  return (
+    <div className="space-y-3">
+      <div className="h-5 w-40 rounded bg-secondary" />
+      <div className="flex gap-3 overflow-hidden">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="aspect-[2/3] w-40 shrink-0 rounded-lg bg-secondary" />
+        ))}
+      </div>
     </div>
   );
 }

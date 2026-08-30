@@ -1,9 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Suspense } from "react";
 import { requireUser } from "@/lib/auth";
 import { getContinueWatching } from "@/lib/tracking/queries";
-import { RecommendationShelves } from "@/components/recommendations/shelves";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import type { ShowStatus } from "@/lib/analytics/events";
 
@@ -13,19 +11,6 @@ const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
 
 function epCode(s: number, e: number) {
   return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
-}
-
-function RecsSkeleton() {
-  return (
-    <div className="flex gap-3 overflow-hidden">
-      {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="w-40 shrink-0">
-          <div className="aspect-[2/3] w-full animate-pulse rounded-lg bg-secondary" />
-          <div className="mt-2 h-3 w-3/4 animate-pulse rounded bg-secondary" />
-        </div>
-      ))}
-    </div>
-  );
 }
 
 type Row = {
@@ -166,12 +151,7 @@ export default async function DashboardPage() {
             </section>
           )}
 
-          {/* 2 — Recommendations: Perfect For You + taste-genre rows */}
-          <Suspense fallback={<RecsSkeleton />}>
-            <RecommendationShelves userId={user.id} />
-          </Suspense>
-
-          {/* 3 — Recently Added */}
+          {/* 2 — Recently Added (recommendations live on /discover) */}
           <section className="space-y-3">
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-lg font-semibold">Recently Added</h2>

@@ -13,6 +13,7 @@ import { updateSession } from '@/lib/supabase/proxy-session';
  */
 const PROTECTED_PREFIXES = [
   '/dashboard',
+  '/discover',
   '/library',
   '/search',
   '/upcoming',

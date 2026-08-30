@@ -68,5 +68,5 @@ export async function finishOnboarding(): Promise<void> {
   await supabase.from("profiles").update({ onboarded_at: new Date().toISOString() }).eq("id", user.id);
   await trackServer("onboarding_completed", user.id, { rated_count: 0 });
   await flushServerAnalytics();
-  redirect("/dashboard");
+  redirect("/discover");
 }

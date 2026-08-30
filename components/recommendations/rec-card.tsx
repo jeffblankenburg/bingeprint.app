@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import Link from "next/link";
 import { Plus, X, Eye } from "lucide-react";
 import { recordRecommendationFeedback } from "@/lib/recommendations/actions";
@@ -11,37 +11,49 @@ import { LazyImage } from "@/components/ui/lazy-image";
 const TMDB_IMAGE =
   process.env.NEXT_PUBLIC_TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
 
+export type RecItem = {
+  showId: string;
+  tmdbId: number;
+  name: string;
+  posterPath: string | null;
+  because: string[];
+  offService: boolean;
+};
+
+/**
+ * A single recommendation card. Presentational — the parent row owns the list
+ * and, when `onDone` fires after feedback, drops this card and slides in the
+ * next reserve pick.
+ */
 export function RecCard({
   showId,
   tmdbId,
   name,
   posterPath,
   because,
-}: {
-  showId: string;
-  tmdbId: number;
-  name: string;
-  posterPath: string | null;
-  because: string[];
-}) {
-  const [gone, setGone] = useState(false);
+  offService,
+  onDone,
+}: RecItem & { onDone: (showId: string) => void }) {
   const [, startTransition] = useTransition();
 
   function feedback(kind: RecommendationFeedback) {
-    setGone(true);
     startTransition(() => void recordRecommendationFeedback(showId, kind));
+    onDone(showId);
   }
-
-  if (gone) return null;
 
   return (
     <div className="flex w-40 shrink-0 flex-col">
       <Link href={`/show/${tmdbId}`}>
-        <div className="aspect-[2/3] w-full overflow-hidden rounded-lg border bg-secondary">
+        <div className="relative aspect-[2/3] w-full overflow-hidden rounded-lg border bg-secondary">
           {posterPath ? (
             <LazyImage src={`${TMDB_IMAGE}/w342${posterPath}`} alt={name} />
           ) : (
             <SmpteBars height="100%" />
+          )}
+          {offService && (
+            <span className="absolute left-1 top-1 rounded bg-background/85 px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground backdrop-blur">
+              not on your services
+            </span>
           )}
         </div>
         <p className="mt-1.5 line-clamp-1 text-sm font-medium">{name}</p>

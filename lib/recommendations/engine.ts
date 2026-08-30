@@ -10,10 +10,16 @@ type Admin = ReturnType<typeof createAdminClient>;
 
 const MAX_SEEDS = 14;
 const BECAUSE_ROWS = 3; // number of "Because You Loved X" rows
-const IMPORT_POOL = 70; // candidates to import (poster + watch providers) before filtering
-const PERFECT_TARGET = 14; // size of the blended "Perfect For You" row
-const BECAUSE_TARGET = 12; // size of each "Because You Loved X" row
+const IMPORT_POOL = 90; // candidates to import (poster + watch providers) before filtering
+// Store more than we display so dismissing a card can reveal a fresh one.
+const PERFECT_STORE = 28; // stored size of the "Perfect For You" row
+const BECAUSE_STORE = 14; // stored size of each "Because You Loved X" row
 const REGEN_TTL_MS = 1000 * 60 * 60 * 12; // 12h
+
+// On-service shows sort ahead of off-service ones within a shelf (so watchable
+// picks show first and off-service ones act as fallback/reserve), without ever
+// dropping off-service picks entirely.
+const ON_SERVICE_BOOST = 1_000_000;
 
 type Candidate = {
   tmdbId: number;
@@ -139,7 +145,9 @@ export async function generateRecommendations(userId: string): Promise<number> {
     await importShowCore(c.summary.providerId).catch(() => {});
   });
 
-  // ── Resolve local ids + HARD streaming filter (if the user set services). ───
+  // ── Resolve local ids + streaming availability (a soft preference, not a wall
+  // — an empty dashboard for a Netflix-only completist is worse than a labeled
+  // off-service pick). ────────────────────────────────────────────────────────
   const tmdbIds = toImport.map((c) => c.tmdbId);
   const { data: showRows } = await admin.from("shows").select("id, tmdb_id").in("tmdb_id", tmdbIds);
   const showIdByTmdb = new Map((showRows ?? []).map((s) => [s.tmdb_id, s.id]));
@@ -159,31 +167,32 @@ export async function generateRecommendations(userId: string): Promise<number> {
       if (t && userServiceIds.has(t)) watchable.add(r.show_id);
     }
   }
+  // No services set (or no availability data) → everything counts as on-service.
+  const isOnService = (showId: string) => !watchable || watchable.has(showId);
 
   const eligible = toImport
     .map((c) => ({ c, showId: showIdByTmdb.get(c.tmdbId) }))
-    .filter((x): x is { c: Candidate; showId: string } =>
-      !!x.showId && (watchable ? watchable.has(x.showId) : true),
-    );
-  const byTmdb = new Map(eligible.map((x) => [x.c.tmdbId, x]));
+    .filter((x): x is { c: Candidate; showId: string } => !!x.showId);
 
-  // ── Assemble shelves. A show lands in one row only. ─────────────────────────
+  // ── Assemble shelves. A show lands in one row only. On-service picks sort
+  // first (via the boost), off-service ones follow as fallback/reserve. ────────
   const used = new Set<string>();
   const recs: TablesInsert<"recommendations">[] = [];
+  const svc = (showId: string) => (isOnService(showId) ? ON_SERVICE_BOOST : 0);
 
   // Perfect For You: strongest cross-seed matches.
   eligible
     .slice()
-    .sort((a, b) => score(b.c) - score(a.c))
-    .slice(0, PERFECT_TARGET)
+    .sort((a, b) => svc(b.showId) + score(b.c) - (svc(a.showId) + score(a.c)))
+    .slice(0, PERFECT_STORE)
     .forEach(({ c, showId }) => {
       used.add(showId);
       recs.push({
         user_id: userId,
         show_id: showId,
         collection: "perfect_for_you",
-        score: score(c),
-        reason: { because: [...c.seeds].slice(0, 3) },
+        score: svc(showId) + score(c),
+        reason: { because: [...c.seeds].slice(0, 3), off_service: !isOnService(showId) },
       });
     });
 
@@ -194,8 +203,12 @@ export async function generateRecommendations(userId: string): Promise<number> {
     if (rows >= BECAUSE_ROWS) break;
     const picks = eligible
       .filter((x) => !used.has(x.showId) && x.c.bestRank.has(seed.name))
-      .sort((a, b) => (b.c.bestRank.get(seed.name)! - a.c.bestRank.get(seed.name)!))
-      .slice(0, BECAUSE_TARGET);
+      .sort(
+        (a, b) =>
+          svc(b.showId) + b.c.bestRank.get(seed.name)! * 10 -
+          (svc(a.showId) + a.c.bestRank.get(seed.name)! * 10),
+      )
+      .slice(0, BECAUSE_STORE);
     if (picks.length < 3) continue; // skip thin rows
     rows++;
     for (const { c, showId } of picks) {
@@ -204,8 +217,8 @@ export async function generateRecommendations(userId: string): Promise<number> {
         user_id: userId,
         show_id: showId,
         collection: `because_${seed.tmdb_id}`,
-        score: c.bestRank.get(seed.name)! * 10,
-        reason: { seed: seed.name },
+        score: svc(showId) + c.bestRank.get(seed.name)! * 10,
+        reason: { seed: seed.name, off_service: !isOnService(showId) },
       });
     }
   }
