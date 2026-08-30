@@ -10,7 +10,7 @@ import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = request.nextUrl;
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/discover";
+  const next = searchParams.get("next") ?? "/dashboard";
 
   if (!code) {
     return NextResponse.redirect(`${origin}/login?error=missing_code`);
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
   const destination = profile?.onboarded_at
     ? next.startsWith("/")
       ? next
-      : "/discover"
+      : "/dashboard"
     : "/onboarding";
   return NextResponse.redirect(`${origin}${destination}`);
 }
