@@ -14,6 +14,7 @@ import type {
   CreditRole,
   SearchResults,
   ImageSize,
+  DiscoverOptions,
 } from "./provider";
 
 const API_BASE = process.env.TMDB_API_BASE ?? "https://api.themoviedb.org/3";
@@ -120,6 +121,21 @@ export class TmdbProvider implements TVProvider {
   async popularShows(page = 1): Promise<ProviderShowSummary[]> {
     const data = await this.get<{ results: TmdbShow[] }>("/tv/popular", { page });
     return data.results.map(mapShowSummary);
+  }
+
+  async discoverShows(opts: DiscoverOptions): Promise<ProviderShowSummary[]> {
+    const rating = opts.sort === "rating";
+    const params: Record<string, string | number> = {
+      page: opts.page ?? 1,
+      include_adult: "false",
+      // "Top rated" without a vote floor surfaces obscure shows with a single
+      // 10/10 vote — gate it so the list is trustworthy.
+      sort_by: rating ? "vote_average.desc" : "popularity.desc",
+      "vote_count.gte": rating ? 200 : 0,
+    };
+    if (opts.genreId) params.with_genres = opts.genreId;
+    const data = await this.get<{ results: TmdbShow[] }>("/discover/tv", params, 60 * 60 * 6);
+    return (data.results ?? []).map(mapShowSummary);
   }
 
   async getRecommendations(providerId: string): Promise<ProviderShowSummary[]> {

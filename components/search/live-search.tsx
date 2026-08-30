@@ -14,7 +14,13 @@ type ShowResult = {
   year: string;
   poster: string | null;
 };
-type Results = { shows: ShowResult[]; people: { name: string }[] };
+type PersonResult = {
+  tmdbId: number;
+  name: string;
+  department: string | null;
+  profile: string | null;
+};
+type Results = { shows: ShowResult[]; people: PersonResult[] };
 
 /** Debounced live search — results appear as you type, no Enter required. */
 export function LiveSearch() {
@@ -76,10 +82,53 @@ export function LiveSearch() {
         />
       </div>
 
-      {results && results.shows.length === 0 && !loading && (
-        <p className="py-12 text-center text-sm text-muted-foreground">
-          No shows for <span className="text-foreground">“{q.trim()}”</span>.
-        </p>
+      {results &&
+        results.shows.length === 0 &&
+        results.people.length === 0 &&
+        !loading && (
+          <p className="py-12 text-center text-sm text-muted-foreground">
+            No results for <span className="text-foreground">“{q.trim()}”</span>.
+          </p>
+        )}
+
+      {results && results.people.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-muted-foreground">
+            People
+          </p>
+          <ul className="divide-y rounded-xl border bg-card">
+            {results.people.map((person) => (
+              <li key={person.tmdbId}>
+                <Link
+                  href={`/person/${person.tmdbId}`}
+                  className="flex items-center gap-3 p-3"
+                >
+                  <div className="h-11 w-11 shrink-0 overflow-hidden rounded-full bg-secondary">
+                    {person.profile ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={person.profile}
+                        alt=""
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <SmpteBars height="100%" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{person.name}</p>
+                    {person.department && (
+                      <p className="font-mono text-xs text-muted-foreground">
+                        {person.department}
+                      </p>
+                    )}
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {results && results.shows.length > 0 && (

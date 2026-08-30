@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
         year: s.firstAirDate?.slice(0, 4) ?? "",
         poster: provider.imageUrl(s.posterPath, "thumb"),
       })),
-      people: people.slice(0, 10).map((p) => ({ name: p.name })),
+      people: people.slice(0, 6).map((p) => ({
+        tmdbId: Number(p.providerId),
+        name: p.name,
+        department: p.department,
+        profile: provider.imageUrl(p.profilePath, "thumb"),
+      })),
     });
   } catch {
     return NextResponse.json({ shows: [], people: [] }, { status: 200 });

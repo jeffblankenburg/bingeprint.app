@@ -157,8 +157,19 @@ export interface TVProvider {
   /** Shows similar to a given show (the recommendation candidate source). */
   getRecommendations(providerId: string): Promise<ProviderShowSummary[]>;
   popularShows(page?: number): Promise<ProviderShowSummary[]>;
+  /** Browse the catalog by genre, sorted by popularity or rating. */
+  discoverShows(opts: DiscoverOptions): Promise<ProviderShowSummary[]>;
   imageUrl(path: string | null, size?: ImageSize): string | null;
 }
+
+export type DiscoverSort = "popularity" | "rating";
+
+export type DiscoverOptions = {
+  /** Provider genre id (TMDB genre id). Omit for all genres. */
+  genreId?: number;
+  sort?: DiscoverSort;
+  page?: number;
+};
 
 let cached: TVProvider | null = null;
 

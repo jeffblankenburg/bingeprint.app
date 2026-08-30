@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Home,
+  Compass,
   Clapperboard,
   CalendarClock,
   ChartNoAxesColumn,
@@ -14,6 +15,7 @@ import { cn } from "@/lib/utils";
 // Search lives in the header (always available), not in the tab bar.
 export const NAV_ITEMS = [
   { href: "/dashboard", label: "Home", icon: Home },
+  { href: "/discover", label: "Discover", icon: Compass },
   { href: "/library", label: "Library", icon: Clapperboard },
   { href: "/upcoming", label: "Upcoming", icon: CalendarClock },
   { href: "/insights", label: "Insights", icon: ChartNoAxesColumn },
