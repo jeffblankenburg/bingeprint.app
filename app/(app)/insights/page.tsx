@@ -6,8 +6,6 @@ import { SmpteBars, BarMeter, SMPTE_BARS } from "@/components/brand/smpte-bars";
 
 export const metadata: Metadata = { title: "Insights" };
 
-const TMDB_IMAGE = process.env.TMDB_IMAGE_BASE ?? "https://image.tmdb.org/t/p";
-
 function watchTime(mins: number) {
   const hours = Math.round(mins / 60);
   const days = Math.floor(mins / 60 / 24);
@@ -88,54 +86,6 @@ export default async function InsightsPage() {
                   ))}
                 </div>
               </div>
-            </section>
-          )}
-
-          {/* Most-watched actors — link to their detail pages */}
-          {insights.people.length > 0 && (
-            <section className="space-y-3 rounded-xl border bg-card p-5">
-              <h2 className="font-mono text-xs uppercase tracking-widest text-muted-foreground">
-                Most-watched actors
-              </h2>
-              <ol className="space-y-1">
-                {insights.people.map((p, i) => (
-                  <li key={p.tmdb_id}>
-                    <Link
-                      href={`/person/${p.tmdb_id}`}
-                      className="group flex items-center gap-3 rounded-md py-1.5 transition-colors hover:bg-accent"
-                    >
-                      <span className="w-4 text-center font-mono text-xs text-muted-foreground">
-                        {i + 1}
-                      </span>
-                      <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-secondary">
-                        {p.profile_path ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={`${TMDB_IMAGE}/w185${p.profile_path}`}
-                            alt={p.name}
-                            className="h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <SmpteBars height="100%" />
-                        )}
-                      </div>
-                      <span className="flex-1 text-sm font-medium group-hover:text-primary">
-                        {p.name}
-                      </span>
-                      <span className="tabular font-mono text-xs text-muted-foreground">
-                        {p.episodes} eps
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ol>
-              {insights.people_estimated && (
-                <p className="pt-1 font-mono text-[11px] leading-snug text-muted-foreground">
-                  Counts are exact where per-episode cast data exists; for episodes
-                  without it, we estimate from the show&rsquo;s main cast.
-                </p>
-              )}
             </section>
           )}
 
