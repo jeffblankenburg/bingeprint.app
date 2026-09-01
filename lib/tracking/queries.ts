@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { APP_TIMEZONE, todayISO, dateOffsetISO } from "@/lib/time";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -37,6 +38,7 @@ export async function getNewEpisodes(
   supabase: Supabase,
   userId: string,
   windowDays = 30,
+  tz: string = APP_TIMEZONE,
 ): Promise<NewEpisodeItem[]> {
   const { data: rows } = await supabase
     .from("user_shows")
@@ -44,8 +46,8 @@ export async function getNewEpisodes(
     .eq("user_id", userId)
     .in("status", ["watching", "watched", "paused"]);
 
-  const today = new Date().toISOString().slice(0, 10);
-  const cutoff = new Date(Date.now() - windowDays * 86400_000).toISOString().slice(0, 10);
+  const today = todayISO(tz);
+  const cutoff = dateOffsetISO(-windowDays, tz);
 
   // Only still-running shows can have new episodes — skip ended series.
   const ongoing = (rows ?? []).filter((r) => {
@@ -113,6 +115,7 @@ export async function getContinueWatching(
   supabase: Supabase,
   userId: string,
   limit = 12,
+  tz: string = APP_TIMEZONE,
 ): Promise<ContinueItem[]> {
   const { data: rows } = await supabase
     .from("user_shows")
@@ -122,7 +125,7 @@ export async function getContinueWatching(
     .order("updated_at", { ascending: false })
     .limit(limit);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO(tz);
 
   const items = await Promise.all(
     (rows ?? []).map(async (r) => {

@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Check, Clock } from "lucide-react";
 import { markEpisodesWatched, unmarkEpisodesWatched } from "@/lib/tracking/actions";
+import { formatAirDate } from "@/lib/time";
 import { BarMeter } from "@/components/brand/smpte-bars";
 import { cn } from "@/lib/utils";
 
@@ -239,7 +240,9 @@ export function SeasonsTracker({
                         <span className="font-medium">{ep.name ?? "TBA"}</span>
                         {ep.air_date ? (
                           <span className="ml-2 font-mono text-[11px] text-muted-foreground">
-                            {ep.aired ? ep.air_date : `Airs ${ep.air_date}`}
+                            {ep.aired
+                              ? formatAirDate(ep.air_date)
+                              : `Airs ${formatAirDate(ep.air_date)}`}
                           </span>
                         ) : (
                           <span className="ml-2 font-mono text-[11px] text-muted-foreground">TBA</span>

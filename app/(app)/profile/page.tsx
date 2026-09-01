@@ -43,6 +43,14 @@ export default async function ProfilePage() {
           <p className="font-mono text-sm">{user.email}</p>
         </div>
 
+        <div className="rounded-md border bg-card px-4 py-3">
+          <p className="text-xs text-muted-foreground">Time zone</p>
+          <p className="font-mono text-sm">{profile?.timezone ?? "America/New_York"}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Detected from your device — release dates show in your local zone.
+          </p>
+        </div>
+
         <ProfileForm
           displayName={profile?.display_name ?? ""}
           username={profile?.username ?? ""}

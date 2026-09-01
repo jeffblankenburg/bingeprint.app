@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import { getUpcoming, type UpcomingBucket, type UpcomingEpisode } from "@/lib/upcoming";
+import { formatAirDate } from "@/lib/time";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 
 export const metadata: Metadata = { title: "Upcoming" };
@@ -15,10 +16,7 @@ const SECTIONS: { key: UpcomingBucket; label: string }[] = [
   { key: "later", label: "Coming Soon" },
 ];
 
-function fmtDate(iso: string) {
-  const d = new Date(`${iso}T00:00:00`);
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-}
+const fmtDate = (iso: string) => formatAirDate(iso);
 
 function epCode(s: number, e: number) {
   return `S${String(s).padStart(2, "0")}E${String(e).padStart(2, "0")}`;
@@ -64,8 +62,8 @@ function Row({ ep }: { ep: UpcomingEpisode }) {
 }
 
 export default async function UpcomingPage() {
-  const { user, supabase } = await requireUser();
-  const { groups, total } = await getUpcoming(supabase, user.id);
+  const { user, profile, supabase } = await requireUser();
+  const { groups, total } = await getUpcoming(supabase, user.id, profile?.timezone ?? undefined);
 
   return (
     <div className="space-y-8">

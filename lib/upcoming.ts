@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createClient } from "@/lib/supabase/server";
+import { APP_TIMEZONE, dateOffsetISO } from "@/lib/time";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -18,10 +19,6 @@ export type UpcomingEpisode = {
 export type UpcomingBucket = "today" | "week" | "month" | "later";
 export type UpcomingGroups = Record<UpcomingBucket, UpcomingEpisode[]>;
 
-function isoOffset(days: number): string {
-  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
-}
-
 /**
  * Upcoming episodes for the shows a user follows (everything but Abandoned),
  * bucketed into Today / This Week / This Month / Later.
@@ -29,7 +26,9 @@ function isoOffset(days: number): string {
 export async function getUpcoming(
   supabase: Supabase,
   userId: string,
+  tz: string = APP_TIMEZONE,
 ): Promise<{ groups: UpcomingGroups; total: number }> {
+  const isoOffset = (days: number) => dateOffsetISO(days, tz);
   const empty: UpcomingGroups = { today: [], week: [], month: [], later: [] };
 
   const { data: tracked } = await supabase

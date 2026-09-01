@@ -70,7 +70,7 @@ export async function setShowStatus(
   from: ShowStatus,
   to: ShowStatus,
 ): Promise<ActionResult> {
-  const { user, supabase } = await requireUser();
+  const { user, profile, supabase } = await requireUser();
   const patch: TablesUpdate<"user_shows"> = { status: to };
   if (to === "watching") patch.started_at = new Date().toISOString();
   if (to === "watched") patch.completed_at = new Date().toISOString();
@@ -85,7 +85,7 @@ export async function setShowStatus(
   // Marking a show Watched means every aired episode is watched (and no unaired
   // one) — so progress is real and a future episode still surfaces as new.
   if (to === "watched") {
-    await markAllAiredWatched(supabase, user.id, showId);
+    await markAllAiredWatched(supabase, user.id, showId, profile?.timezone ?? undefined);
   }
 
   await trackServer("show_status_changed", user.id, { show_id: showId, from, to });

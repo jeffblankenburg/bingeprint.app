@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { trackServer, flushServerAnalytics } from "@/lib/analytics/server";
+import { APP_TIMEZONE, todayISO } from "@/lib/time";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 export type TrackingResult = { ok: boolean; error?: string; watched?: number; total?: number };
@@ -18,8 +19,12 @@ async function realEpisodeCount(supabase: Supabase, showId: string): Promise<num
 }
 
 /** Episodes that have actually aired — the denominator for "watched". */
-async function airedEpisodeCount(supabase: Supabase, showId: string): Promise<number> {
-  const today = new Date().toISOString().slice(0, 10);
+async function airedEpisodeCount(
+  supabase: Supabase,
+  showId: string,
+  tz: string = APP_TIMEZONE,
+): Promise<number> {
+  const today = todayISO(tz);
   const { count } = await supabase
     .from("episodes")
     .select("*", { count: "exact", head: true })
@@ -47,11 +52,12 @@ async function syncStatus(
   supabase: Supabase,
   userId: string,
   showId: string,
+  tz: string = APP_TIMEZONE,
 ): Promise<{ watched: number; total: number; completed: boolean }> {
   const [watched, total, aired] = await Promise.all([
     watchedCount(supabase, userId, showId),
     realEpisodeCount(supabase, showId),
-    airedEpisodeCount(supabase, showId),
+    airedEpisodeCount(supabase, showId, tz),
   ]);
 
   const { data: existing } = await supabase
@@ -97,11 +103,12 @@ export async function markEpisodesWatched(
   showId: string,
   episodeIds: string[],
 ): Promise<TrackingResult> {
-  const { user, supabase } = await requireUser();
+  const { user, profile, supabase } = await requireUser();
   if (episodeIds.length === 0) return { ok: true };
+  const tz = profile?.timezone ?? APP_TIMEZONE;
 
-  // Enforce: you can't mark an episode that hasn't aired yet.
-  const today = new Date().toISOString().slice(0, 10);
+  // Enforce: you can't mark an episode that hasn't aired yet (in the user's tz).
+  const today = todayISO(tz);
   const { data: eps } = await supabase
     .from("episodes")
     .select("id, air_date")
@@ -110,7 +117,7 @@ export async function markEpisodesWatched(
     .filter((e) => e.air_date && e.air_date <= today)
     .map((e) => e.id);
   if (airedIds.length === 0) {
-    const { watched, total } = await syncStatus(supabase, user.id, showId);
+    const { watched, total } = await syncStatus(supabase, user.id, showId, tz);
     return { ok: true, watched, total };
   }
 
@@ -130,7 +137,7 @@ export async function markEpisodesWatched(
     });
   }
 
-  const { watched, total, completed } = await syncStatus(supabase, user.id, showId);
+  const { watched, total, completed } = await syncStatus(supabase, user.id, showId, tz);
   if (completed) {
     await trackServer("show_completed", user.id, { show_id: showId, episode_count: total });
   }
@@ -144,8 +151,9 @@ export async function unmarkEpisodesWatched(
   showId: string,
   episodeIds: string[],
 ): Promise<TrackingResult> {
-  const { user, supabase } = await requireUser();
+  const { user, profile, supabase } = await requireUser();
   if (episodeIds.length === 0) return { ok: true };
+  const tz = profile?.timezone ?? APP_TIMEZONE;
 
   const { error } = await supabase
     .from("user_episodes")
@@ -158,7 +166,7 @@ export async function unmarkEpisodesWatched(
     await trackServer("episode_unmarked_watched", user.id, { show_id: showId, episode_id: episodeIds[0] });
   }
 
-  const { watched, total } = await syncStatus(supabase, user.id, showId);
+  const { watched, total } = await syncStatus(supabase, user.id, showId, tz);
   await flushServerAnalytics();
   revalidatePath("/dashboard");
   return { ok: true, watched, total };

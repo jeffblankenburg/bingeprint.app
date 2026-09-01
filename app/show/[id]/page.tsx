@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { getShowCore, getShowEpisodes } from "@/lib/tv/read";
 import { createClient } from "@/lib/supabase/server";
+import { APP_TIMEZONE, todayISO } from "@/lib/time";
 import { AddToLibrary } from "@/components/library/add-to-library";
 import { SmpteBars } from "@/components/brand/smpte-bars";
 import { LazyImage } from "@/components/ui/lazy-image";
@@ -263,16 +264,17 @@ async function ShowEpisodes({
     data: { user },
   } = await supabase.auth.getUser();
   let watchedIds: string[] = [];
+  let tz = APP_TIMEZONE;
   if (user) {
-    const { data } = await supabase
-      .from("user_episodes")
-      .select("episode_id")
-      .eq("user_id", user.id)
-      .eq("show_id", showId);
-    watchedIds = (data ?? []).map((r) => r.episode_id);
+    const [{ data: watched }, { data: prof }] = await Promise.all([
+      supabase.from("user_episodes").select("episode_id").eq("user_id", user.id).eq("show_id", showId),
+      supabase.from("profiles").select("timezone").eq("id", user.id).maybeSingle(),
+    ]);
+    watchedIds = (watched ?? []).map((r) => r.episode_id);
+    tz = prof?.timezone ?? APP_TIMEZONE;
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO(tz);
   const seasonsWithEpisodes = real.map((s) => ({
     season_number: s.season_number,
     name: s.name,

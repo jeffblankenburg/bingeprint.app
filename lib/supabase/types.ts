@@ -321,6 +321,7 @@ export type Database = {
           is_public: boolean
           onboarded_at: string | null
           recs_generated_at: string | null
+          timezone: string
           updated_at: string
           username: string | null
         }
@@ -334,6 +335,7 @@ export type Database = {
           is_public?: boolean
           onboarded_at?: string | null
           recs_generated_at?: string | null
+          timezone?: string
           updated_at?: string
           username?: string | null
         }
@@ -347,6 +349,7 @@ export type Database = {
           is_public?: boolean
           onboarded_at?: string | null
           recs_generated_at?: string | null
+          timezone?: string
           updated_at?: string
           username?: string | null
         }

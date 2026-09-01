@@ -69,9 +69,10 @@ export default async function DashboardPage() {
     { total: 0 } as Record<string, number>,
   );
 
+  const tz = profile?.timezone ?? undefined;
   const [newEpisodes, continueWatchingAll] = await Promise.all([
-    getNewEpisodes(supabase, user.id),
-    getContinueWatching(supabase, user.id),
+    getNewEpisodes(supabase, user.id, 30, tz),
+    getContinueWatching(supabase, user.id, 12, tz),
   ]);
   // A show with a fresh drop belongs in New Episodes, not both rows.
   const newIds = new Set(newEpisodes.map((n) => n.show.id));

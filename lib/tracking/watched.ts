@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { createClient } from "@/lib/supabase/server";
+import { APP_TIMEZONE, todayISO } from "@/lib/time";
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
@@ -8,13 +9,15 @@ type Supabase = Awaited<ReturnType<typeof createClient>>;
  * Mark every *aired* episode of a show as watched, never an unaired one. This is
  * what "I've watched this show" means — you can't have seen next month's episode,
  * and a future episode must still surface as new once it airs. Idempotent.
+ * "Aired" is resolved in the user's timezone.
  */
 export async function markAllAiredWatched(
   supabase: Supabase,
   userId: string,
   showId: string,
+  tz: string = APP_TIMEZONE,
 ): Promise<void> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO(tz);
   const { data: eps } = await supabase
     .from("episodes")
     .select("id, air_date")

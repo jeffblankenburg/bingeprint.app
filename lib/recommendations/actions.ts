@@ -15,7 +15,7 @@ export async function recordRecommendationFeedback(
   showId: string,
   kind: RecommendationFeedback,
 ): Promise<{ ok: boolean; error?: string }> {
-  const { user, supabase } = await requireUser();
+  const { user, profile, supabase } = await requireUser();
 
   const { error } = await supabase
     .from("recommendation_feedback")
@@ -60,7 +60,7 @@ export async function recordRecommendationFeedback(
         { onConflict: "user_id,show_id" },
       );
     // Keep episode progress consistent: all aired episodes watched, none unaired.
-    await markAllAiredWatched(supabase, user.id, showId);
+    await markAllAiredWatched(supabase, user.id, showId, profile?.timezone ?? undefined);
   } else {
     await trackServer("recommendation_dismissed", user.id, {
       show_id: showId,
